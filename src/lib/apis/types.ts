@@ -651,6 +651,7 @@ export interface GetLeadsQuery {
   leadSource?: LeadSource;
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
+  followupDateFilter?: 'overdue' | 'due_soon' | 'future';
 }
 
 export interface PaginatedLeadsResponse {

@@ -31,6 +31,9 @@ export default function Analytics({ onAddNewLead }: AnalyticsProps) {
   const { toast } = useToast();
   const isFetchingRef = useRef(false);
   const errorCountRef = useRef(0);
+  const lastErrorTimeRef = useRef<number>(0);
+  const cooldownPeriodRef = useRef<number>(30000); // 30 seconds cooldown
+  const MAX_RETRIES = 3;
   const [showNetworkError, setShowNetworkError] = useState(false);
   const [networkErrorMessage, setNetworkErrorMessage] = useState('');
 
@@ -54,9 +57,27 @@ export default function Analytics({ onAddNewLead }: AnalyticsProps) {
       return;
     }
 
-    // Circuit breaker: stop after 3 consecutive errors
-    if (errorCountRef.current >= 3) {
+    // Check cooldown period
+    const now = Date.now();
+    if (errorCountRef.current >= MAX_RETRIES && (now - lastErrorTimeRef.current) < cooldownPeriodRef.current) {
+      const remainingSeconds = Math.ceil((cooldownPeriodRef.current - (now - lastErrorTimeRef.current)) / 1000);
+      console.error(`Too many errors, in cooldown period. Wait ${remainingSeconds} seconds.`);
+      if (!showNetworkError) {
+        setNetworkErrorMessage(`Server not found. Too many connection attempts. Please wait ${remainingSeconds} seconds before retrying or check your API URL configuration.`);
+        setShowNetworkError(true);
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Circuit breaker: stop after max retries
+    if (errorCountRef.current >= MAX_RETRIES) {
       console.error("Too many errors, stopping API calls");
+      if (!showNetworkError) {
+        setNetworkErrorMessage("Server not found. Please check your API URL configuration and try again later.");
+        setShowNetworkError(true);
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -84,23 +105,37 @@ export default function Analytics({ onAddNewLead }: AnalyticsProps) {
         }
         
         // Check if it's a network error (no response from server)
-        const isNetworkError = !error?.response || error?.code === 'ECONNABORTED' || error?.code === 'ERR_NETWORK' || error?.message?.includes('Network Error') || error?.message?.includes('timeout');
+        const isNetworkError = !error?.response || 
+                              error?.code === 'ECONNABORTED' || 
+                              error?.code === 'ERR_NETWORK' || 
+                              error?.code === 'ERR_INTERNET_DISCONNECTED' ||
+                              error?.message?.includes('Network Error') || 
+                              error?.message?.includes('timeout') ||
+                              error?.message?.includes('Failed to fetch') ||
+                              error?.message?.includes('Server not found');
         const isServerError = error?.response?.status >= 500;
+        const isServerNotFound = error?.response?.status === 404 || 
+                                error?.message?.includes('Server not found') ||
+                                error?.message?.includes('Failed to fetch');
         
         // Increment error count for network/server errors
-        if (isNetworkError || isServerError) {
+        if (isNetworkError || isServerError || isServerNotFound) {
           errorCountRef.current += 1;
+          lastErrorTimeRef.current = Date.now();
         } else {
-          // Reset on client errors (4xx)
+          // Reset on client errors (4xx) that aren't server issues
           errorCountRef.current = 0;
+          lastErrorTimeRef.current = 0;
         }
 
-        // Show network error dialog after 2 consecutive errors
-        if (errorCountRef.current >= 2) {
-          let errorMsg = "Unable to connect to the server. Please check your internet connection and try again.";
+        // Show network error dialog after 2 consecutive errors or immediately for server not found
+        if (errorCountRef.current >= 2 || isServerNotFound) {
+          let errorMsg = "Server not found. Please check your API URL configuration and try again.";
           
-          if (isNetworkError) {
-            errorMsg = "Network connection issue detected. Please check your internet connection.";
+          if (isServerNotFound) {
+            errorMsg = "Server not found. Network connection issue detected. Please check your internet connection..";
+          } else if (isNetworkError) {
+            errorMsg = "Unable to connect to the server. Please check your internet connection and API URL configuration.";
           } else if (isServerError) {
             errorMsg = "Server is temporarily unavailable. Please try again later.";
           }
@@ -261,6 +296,7 @@ export default function Analytics({ onAddNewLead }: AnalyticsProps) {
   // Retry loading analytics after network error
   const handleRetry = async () => {
     errorCountRef.current = 0;
+    lastErrorTimeRef.current = 0;
     setShowNetworkError(false);
     setIsLoading(true);
     

@@ -159,14 +159,18 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
   const isFetchingRef = React.useRef(false);
   const errorCountRef = React.useRef(0);
   const previousFiltersRef = React.useRef<string>('');
+  const lastErrorTimeRef = React.useRef<number>(0);
+  const cooldownPeriodRef = React.useRef<number>(30000); // 30 seconds cooldown
+  const MAX_RETRIES = 3;
 
   React.useEffect(() => {
     // Create a key from current filters to detect actual changes
-    const filtersKey = JSON.stringify({ filters, currentPage, itemsPerPage });
+    const filtersKey = JSON.stringify({ filters, currentPage, itemsPerPage, followupFilter });
     
     // Reset error count only when filters actually change
     if (previousFiltersRef.current !== filtersKey) {
       errorCountRef.current = 0;
+      lastErrorTimeRef.current = 0;
       previousFiltersRef.current = filtersKey;
     }
 
@@ -175,9 +179,27 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
       return;
     }
 
-    // Circuit breaker: stop after 3 consecutive errors
-    if (errorCountRef.current >= 3) {
+    // Check cooldown period
+    const now = Date.now();
+    if (errorCountRef.current >= MAX_RETRIES && (now - lastErrorTimeRef.current) < cooldownPeriodRef.current) {
+      const remainingSeconds = Math.ceil((cooldownPeriodRef.current - (now - lastErrorTimeRef.current)) / 1000);
+      console.error(`Too many errors, in cooldown period. Wait ${remainingSeconds} seconds.`);
+      if (!showNetworkError) {
+        setNetworkErrorMessage(`Server not found. Too many connection attempts. Please wait ${remainingSeconds} seconds before retrying or check your API URL configuration.`);
+        setShowNetworkError(true);
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Circuit breaker: stop after max retries
+    if (errorCountRef.current >= MAX_RETRIES) {
       console.error("Too many errors, stopping API calls");
+      if (!showNetworkError) {
+        setNetworkErrorMessage("Server not found. Please check your API URL configuration and try again later.");
+        setShowNetworkError(true);
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -185,6 +207,13 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
       isFetchingRef.current = true;
       setIsLoading(true);
       try {
+        // Map followupFilter to API format
+        let followupDateFilter: 'overdue' | 'due_soon' | 'future' | undefined = undefined;
+        if (followupFilter !== 'all') {
+          // Map 'approaching' to 'due_soon' as per API spec
+          followupDateFilter = followupFilter === 'approaching' ? 'due_soon' : followupFilter;
+        }
+
         const query: GetLeadsQuery = {
           search: filters.search || undefined,
           status: filters.status && filters.status.length > 0 ? filters.status : undefined,
@@ -192,6 +221,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
           city: filters.city || undefined,
           page: currentPage,
           limit: itemsPerPage,
+          followupDateFilter: followupDateFilter,
         };
 
         const response = await leadsService.getAllLeads(query);
@@ -214,23 +244,37 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
         }
         
         // Check if it's a network error (no response from server)
-        const isNetworkError = !error?.response || error?.code === 'ECONNABORTED' || error?.code === 'ERR_NETWORK' || error?.message?.includes('Network Error') || error?.message?.includes('timeout');
+        const isNetworkError = !error?.response || 
+                              error?.code === 'ECONNABORTED' || 
+                              error?.code === 'ERR_NETWORK' || 
+                              error?.code === 'ERR_INTERNET_DISCONNECTED' ||
+                              error?.message?.includes('Network Error') || 
+                              error?.message?.includes('timeout') ||
+                              error?.message?.includes('Failed to fetch') ||
+                              error?.message?.includes('Server not found');
         const isServerError = error?.response?.status >= 500;
+        const isServerNotFound = error?.response?.status === 404 || 
+                                error?.message?.includes('Server not found') ||
+                                error?.message?.includes('Failed to fetch');
         
         // Increment error count for network/server errors
-        if (isNetworkError || isServerError) {
+        if (isNetworkError || isServerError || isServerNotFound) {
           errorCountRef.current += 1;
+          lastErrorTimeRef.current = Date.now();
         } else {
-          // Reset on client errors (4xx)
+          // Reset on client errors (4xx) that aren't server issues
           errorCountRef.current = 0;
+          lastErrorTimeRef.current = 0;
         }
 
-        // Show network error dialog after 2 consecutive errors
-        if (errorCountRef.current >= 2) {
-          let errorMsg = "Unable to connect to the server. Please check your internet connection and try again.";
+        // Show network error dialog after 2 consecutive errors or immediately for server not found
+        if (errorCountRef.current >= 2 || isServerNotFound) {
+          let errorMsg = "Server not found. Please check your API URL configuration and try again.";
           
-          if (isNetworkError) {
-            errorMsg = "Network connection issue detected. Please check your internet connection.";
+          if (isServerNotFound) {
+            errorMsg = "Server not found. Please contact support if the problem persists.";
+          } else if (isNetworkError) {
+            errorMsg = "Unable to connect to the server. Please check your internet connection.";
           } else if (isServerError) {
             errorMsg = "Server is temporarily unavailable. Please try again later.";
           }
@@ -245,7 +289,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
           setTotalLeads(0);
           toast({
             title: "Error",
-            description: error?.response?.data?.message || "Failed to load leads. Please try again.",
+            description: error?.response?.data?.message || error?.message || "Failed to load leads. Please try again.",
             variant: "destructive",
           });
         }
@@ -256,7 +300,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
     };
 
     fetchLeads();
-  }, [filters, currentPage, itemsPerPage]);
+  }, [filters, currentPage, itemsPerPage, followupFilter]);
 
   // Helper functions for status colors and followup status
   const getStatusColor = (status: string) => {
@@ -345,20 +389,10 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
     }
   };
 
-  // Sort and filter leads (API filtering + client-side followup filtering)
+  // Sort leads (followup filtering is now handled by API)
   const sortedLeads = useMemo(() => {
-    const sorted = sortData(leads);
-    
-    // Apply followup status filter
-    if (followupFilter === 'all') {
-      return sorted;
-    }
-    
-    return sorted.filter(lead => {
-      const status = getFollowupStatus(lead.nextFollowupDate ?? null).status;
-      return status === followupFilter;
-    });
-  }, [leads, sortConfig, followupFilter]);
+    return sortData(leads);
+  }, [leads, sortConfig]);
 
   // Toggle row expansion
   const toggleRowExpansion = (leadId: string) => {
@@ -389,8 +423,16 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
   // Retry loading leads after network error
   const handleRetry = () => {
     errorCountRef.current = 0;
+    lastErrorTimeRef.current = 0;
     setShowNetworkError(false);
     setIsLoading(true);
+    
+    // Map followupFilter to API format
+    let followupDateFilter: 'overdue' | 'due_soon' | 'future' | undefined = undefined;
+    if (followupFilter !== 'all') {
+      // Map 'approaching' to 'due_soon' as per API spec
+      followupDateFilter = followupFilter === 'approaching' ? 'due_soon' : followupFilter;
+    }
     
     const query: GetLeadsQuery = {
       search: filters.search || undefined,
@@ -399,6 +441,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
       city: filters.city || undefined,
       page: currentPage,
       limit: itemsPerPage,
+      followupDateFilter: followupDateFilter,
     };
 
     leadsService.getAllLeads(query)
@@ -460,6 +503,13 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
             <ImportDialog onImportSuccess={() => {
               console.log("ImportDialog onImportSuccess called - refetching leads");
               // Refetch leads data
+              // Map followupFilter to API format
+              let followupDateFilter: 'overdue' | 'due_soon' | 'future' | undefined = undefined;
+              if (followupFilter !== 'all') {
+                // Map 'approaching' to 'due_soon' as per API spec
+                followupDateFilter = followupFilter === 'approaching' ? 'due_soon' : followupFilter;
+              }
+              
               const query: GetLeadsQuery = {
                 search: filters.search || undefined,
                 status: filters.status && filters.status.length > 0 ? filters.status : undefined,
@@ -467,6 +517,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
                 city: filters.city || undefined,
                 page: currentPage,
                 limit: itemsPerPage,
+                followupDateFilter: followupDateFilter,
               };
               
               leadsService.getAllLeads(query)
