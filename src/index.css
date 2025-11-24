@@ -1,0 +1,231 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom breakpoint for extra small screens */
+@media (min-width: 475px) {
+  .xs\:inline {
+    display: inline;
+  }
+  .xs\:hidden {
+    display: none;
+  }
+}
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+  --success: hsl(142, 76%, 36%);
+  --warning: hsl(38, 92%, 50%);
+  --danger: hsl(0, 84.2%, 60.2%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-gray-50 text-foreground;
+  }
+}
+
+@layer utilities {
+  .text-success {
+    color: var(--success);
+  }
+  
+  .text-warning {
+    color: var(--warning);
+  }
+  
+  .text-danger {
+    color: var(--danger);
+  }
+  
+  .bg-success {
+    background-color: var(--success);
+  }
+  
+  .bg-warning {
+    background-color: var(--warning);
+  }
+  
+  .bg-danger {
+    background-color: var(--danger);
+  }
+
+  /* Safe area utilities for mobile devices */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+  
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0);
+  }
+  
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0);
+  }
+}
+
+@layer components {
+  /* Impressive Primary Button */
+  .btn-impressive-primary {
+    @apply relative inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
+    @apply bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800;
+    @apply rounded-lg shadow-lg transform transition-all duration-300 ease-in-out;
+    @apply hover:from-blue-700 hover:via-blue-800 hover:to-blue-900;
+    @apply hover:shadow-xl hover:scale-105 hover:-translate-y-0.5;
+    @apply focus:outline-none focus:ring-4 focus:ring-blue-300 focus:ring-opacity-50;
+    @apply active:scale-95 active:shadow-md;
+  }
+  
+  .btn-impressive-primary::before {
+    content: '';
+    @apply absolute inset-0 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600;
+    @apply opacity-0 transition-opacity duration-300;
+    z-index: -1;
+  }
+  
+  .btn-impressive-primary:hover::before {
+    @apply opacity-20;
+  }
+
+  /* Impressive Secondary Button */
+  .btn-impressive-secondary {
+    @apply relative inline-flex items-center justify-center px-6 py-3 text-sm font-semibold;
+    @apply bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 text-white;
+    @apply border border-slate-500 rounded-lg shadow-md transform transition-all duration-300 ease-in-out;
+    @apply hover:from-slate-700 hover:via-slate-800 hover:to-slate-900;
+    @apply hover:shadow-lg hover:scale-105 hover:-translate-y-0.5;
+    @apply focus:outline-none focus:ring-4 focus:ring-slate-300 focus:ring-opacity-50;
+    @apply active:scale-95 active:shadow-sm;
+  }
+
+  /* Impressive Success Button */
+  .btn-impressive-success {
+    @apply relative inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
+    @apply bg-gradient-to-r from-green-600 via-green-700 to-green-800;
+    @apply rounded-lg shadow-lg transform transition-all duration-300 ease-in-out;
+    @apply hover:from-green-700 hover:via-green-800 hover:to-green-900;
+    @apply hover:shadow-xl hover:scale-105 hover:-translate-y-0.5;
+    @apply focus:outline-none focus:ring-4 focus:ring-green-300 focus:ring-opacity-50;
+    @apply active:scale-95 active:shadow-md;
+  }
+
+  /* Impressive Danger Button */
+  .btn-impressive-danger {
+    @apply relative inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
+    @apply bg-gradient-to-r from-red-600 via-red-700 to-red-800;
+    @apply rounded-lg shadow-lg transform transition-all duration-300 ease-in-out;
+    @apply hover:from-red-700 hover:via-red-800 hover:to-red-900;
+    @apply hover:shadow-xl hover:scale-105 hover:-translate-y-0.5;
+    @apply focus:outline-none focus:ring-4 focus:ring-red-300 focus:ring-opacity-50;
+    @apply active:scale-95 active:shadow-md;
+  }
+
+  /* Impressive Action Button (Purple) */
+  .btn-impressive-action {
+    @apply relative inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
+    @apply bg-gradient-to-r from-purple-600 via-purple-700 to-purple-800;
+    @apply rounded-lg shadow-lg transform transition-all duration-300 ease-in-out;
+    @apply hover:from-purple-700 hover:via-purple-800 hover:to-purple-900;
+    @apply hover:shadow-xl hover:scale-105 hover:-translate-y-0.5;
+    @apply focus:outline-none focus:ring-4 focus:ring-purple-300 focus:ring-opacity-50;
+    @apply active:scale-95 active:shadow-md;
+  }
+
+  /* Icon Animation */
+  .btn-impressive-primary .icon,
+  .btn-impressive-secondary .icon,
+  .btn-impressive-success .icon,
+  .btn-impressive-danger .icon,
+  .btn-impressive-action .icon {
+    @apply transition-transform duration-300;
+  }
+
+  .btn-impressive-primary:hover .icon,
+  .btn-impressive-secondary:hover .icon,
+  .btn-impressive-success:hover .icon,
+  .btn-impressive-danger:hover .icon,
+  .btn-impressive-action:hover .icon {
+    @apply scale-110;
+  }
+
+  /* Custom Animations for Login Page */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.8s ease-out forwards;
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 1s ease-out forwards;
+  }
+}
