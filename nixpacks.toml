@@ -8,7 +8,7 @@ cmds = ["npm ci"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npx vite preview --host 0.0.0.0 --port 3000"
+cmd = "node server.js"
 
 [variables]
 NODE_ENV = "production"
