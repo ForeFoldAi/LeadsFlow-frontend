@@ -1,15 +1,9 @@
-import { useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AuthGuard from "@/components/auth-guard";
-import { useToast } from "@/hooks/use-toast";
-import {
-  isFirebaseMessagingConfigured,
-  subscribeToForegroundMessages,
-} from "@/lib/firebase";
 
 import Dashboard from "@/pages/dashboard";
 import Analytics from "@/pages/analytics";
@@ -71,72 +65,9 @@ function Router() {
 }
 
 function App() {
-  const { toast } = useToast();
-
-  useEffect(() => {
-    if (!isFirebaseMessagingConfigured()) {
-      return;
-    }
-
-    let unsubscribe: (() => void) | null = null;
-
-    subscribeToForegroundMessages((payload) => {
-      console.log("[Firebase] Foreground push received:", payload);
-
-      const title =
-        payload.notification?.title ??
-        payload.data?.title ??
-        "LeadsFlow Notification";
-      const body =
-        payload.notification?.body ??
-        payload.data?.message ??
-        payload.data?.body ??
-        "You have a new notification.";
-
-      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-        try {
-          const notification = new Notification(title, {
-            body,
-            data: payload.data,
-            icon: payload.notification?.icon || "/logo.png",
-          });
-
-          notification.onclick = () => {
-            const targetUrl = payload.data?.url;
-            if (targetUrl) {
-              window.focus();
-              window.location.href = targetUrl;
-            }
-          };
-        } catch (error) {
-          console.warn("[Firebase] Failed to display foreground notification:", error);
-          toast({
-            title,
-            description: body,
-          });
-        }
-      } else {
-        toast({
-          title,
-          description: body,
-        });
-      }
-    })
-      .then((unsub) => {
-        if (typeof unsub === "function") {
-          unsubscribe = unsub;
-        }
-      })
-      .catch((error) => {
-        console.error("[Firebase] Failed to subscribe to foreground messages:", error);
-      });
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, []);
+  // Web-push notifications are handled by the service worker
+  // The service worker will show notifications even when the app is in the foreground
+  // No additional foreground message handling needed
 
   return (
     <QueryClientProvider client={queryClient}>

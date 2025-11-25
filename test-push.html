@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Push Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <h1>Web Push Notifications - Test Page</h1>
+    
+    <div class="test-section">
+        <h2>1. Browser Support Check</h2>
+        <button onclick="checkSupport()">Check Support</button>
+        <div id="support-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Service Worker Registration</h2>
+        <button onclick="checkServiceWorker()">Check Service Worker</button>
+        <div id="sw-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Get VAPID Public Key</h2>
+        <input type="text" id="api-url" placeholder="API Base URL (e.g., http://localhost:3000)" value="http://localhost:3000" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        <button onclick="getVapidKey()">Get VAPID Key</button>
+        <div id="vapid-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Notification Permission</h2>
+        <button onclick="checkPermission()">Check Permission</button>
+        <button onclick="requestPermission()">Request Permission</button>
+        <div id="permission-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Subscribe to Push</h2>
+        <button onclick="subscribe()">Subscribe</button>
+        <button onclick="getSubscription()">Get Current Subscription</button>
+        <button onclick="unsubscribe()">Unsubscribe</button>
+        <div id="subscription-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>6. Send Test Notification (Backend)</h2>
+        <input type="text" id="auth-token" placeholder="Auth Token (Bearer)" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        <button onclick="testNotification()">Send Test Notification</button>
+        <div id="test-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_URL = () => document.getElementById('api-url').value || 'http://localhost:3000';
+        const AUTH_TOKEN = () => document.getElementById('auth-token').value;
+
+        function showResult(elementId, message, type = 'info') {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.className = `result ${type}`;
+        }
+
+        async function checkSupport() {
+            const supported = 'serviceWorker' in navigator && 
+                            'PushManager' in window && 
+                            'Notification' in window;
+            
+            const isSecure = location.protocol === 'https:' || 
+                           location.hostname === 'localhost' || 
+                           location.hostname === '127.0.0.1';
+
+            const result = `Browser Support: ${supported ? '✅ Supported' : '❌ Not Supported'}
+Push Manager: ${'PushManager' in window ? '✅' : '❌'}
+Service Worker: ${'serviceWorker' in navigator ? '✅' : '❌'}
+Notifications: ${'Notification' in window ? '✅' : '❌'}
+Secure Context: ${isSecure ? '✅' : '❌'} (Required for push)`;
+
+            showResult('support-result', result, supported && isSecure ? 'success' : 'error');
+        }
+
+        async function checkServiceWorker() {
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                let result = `Service Workers Found: ${registrations.length}\n\n`;
+                
+                if (registrations.length === 0) {
+                    result += 'No service workers registered.';
+                    showResult('sw-result', result, 'error');
+                    return;
+                }
+
+                for (const reg of registrations) {
+                    result += `Scope: ${reg.scope}\n`;
+                    result += `State: ${reg.active?.state || 'not active'}\n`;
+                    result += `Script URL: ${reg.active?.scriptURL || 'N/A'}\n\n`;
+                }
+
+                showResult('sw-result', result, 'success');
+            } catch (error) {
+                showResult('sw-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function getVapidKey() {
+            try {
+                const response = await fetch(`${API_URL()}/notifications/vapid-public-key`);
+                const data = await response.json();
+                
+                if (data.publicKey) {
+                    showResult('vapid-result', `VAPID Public Key:\n${data.publicKey}\n\nLength: ${data.publicKey.length}`, 'success');
+                } else {
+                    showResult('vapid-result', `Response: ${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                showResult('vapid-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        function checkPermission() {
+            const permission = Notification.permission;
+            const result = `Current Permission: ${permission}\n\n` +
+                          `granted: User has allowed notifications\n` +
+                          `denied: User has blocked notifications\n` +
+                          `default: Permission not yet requested`;
+            showResult('permission-result', result, permission === 'granted' ? 'success' : 'info');
+        }
+
+        async function requestPermission() {
+            try {
+                const permission = await Notification.requestPermission();
+                checkPermission();
+            } catch (error) {
+                showResult('permission-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function subscribe() {
+            try {
+                // Get VAPID key first
+                const vapidResponse = await fetch(`${API_URL()}/notifications/vapid-public-key`);
+                const vapidData = await vapidResponse.json();
+                
+                if (!vapidData.publicKey) {
+                    showResult('subscription-result', 'Failed to get VAPID key', 'error');
+                    return;
+                }
+
+                // Register service worker
+                const registration = await navigator.serviceWorker.register('/sw.js');
+                console.log('Service worker registered:', registration);
+
+                // Request permission
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    showResult('subscription-result', 'Permission denied by user', 'error');
+                    return;
+                }
+
+                // Convert VAPID key
+                const applicationServerKey = urlBase64ToUint8Array(vapidData.publicKey);
+
+                // Subscribe
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: applicationServerKey
+                });
+
+                // Convert to our format
+                const pushSubscription = {
+                    endpoint: subscription.endpoint,
+                    keys: {
+                        p256dh: arrayBufferToBase64(subscription.getKey('p256dh')),
+                        auth: arrayBufferToBase64(subscription.getKey('auth'))
+                    }
+                };
+
+                // Send to backend
+                const response = await fetch(`${API_URL()}/notifications/subscribe`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(AUTH_TOKEN() ? { 'Authorization': `Bearer ${AUTH_TOKEN()}` } : {})
+                    },
+                    body: JSON.stringify(pushSubscription)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult('subscription-result', 
+                        `✅ Subscription successful!\n\n` +
+                        `Endpoint: ${pushSubscription.endpoint.substring(0, 50)}...\n` +
+                        `Backend Response: ${JSON.stringify(result, null, 2)}`, 
+                        'success');
+                } else {
+                    showResult('subscription-result', 
+                        `❌ Subscription failed:\n${JSON.stringify(result, null, 2)}`, 
+                        'error');
+                }
+            } catch (error) {
+                showResult('subscription-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function getSubscription() {
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.getSubscription();
+                
+                if (subscription) {
+                    const pushSubscription = {
+                        endpoint: subscription.endpoint,
+                        keys: {
+                            p256dh: arrayBufferToBase64(subscription.getKey('p256dh')),
+                            auth: arrayBufferToBase64(subscription.getKey('auth'))
+                        }
+                    };
+                    showResult('subscription-result', 
+                        `Current Subscription:\n${JSON.stringify(pushSubscription, null, 2)}`, 
+                        'success');
+                } else {
+                    showResult('subscription-result', 'No active subscription', 'info');
+                }
+            } catch (error) {
+                showResult('subscription-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function unsubscribe() {
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.getSubscription();
+                
+                if (subscription) {
+                    await subscription.unsubscribe();
+                    
+                    // Also notify backend
+                    if (AUTH_TOKEN()) {
+                        await fetch(`${API_URL()}/notifications/unsubscribe`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${AUTH_TOKEN()}`
+                            }
+                        });
+                    }
+                    
+                    showResult('subscription-result', '✅ Unsubscribed successfully', 'success');
+                } else {
+                    showResult('subscription-result', 'No subscription to unsubscribe', 'info');
+                }
+            } catch (error) {
+                showResult('subscription-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testNotification() {
+            try {
+                if (!AUTH_TOKEN()) {
+                    showResult('test-result', 'Please enter auth token first', 'error');
+                    return;
+                }
+
+                const response = await fetch(`${API_URL()}/notifications/test`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN()}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult('test-result', 
+                        `✅ Test notification sent!\n\n` +
+                        `Response: ${JSON.stringify(result, null, 2)}\n\n` +
+                        `Check your notifications!`, 
+                        'success');
+                } else {
+                    showResult('test-result', 
+                        `❌ Failed to send test notification:\n${JSON.stringify(result, null, 2)}`, 
+                        'error');
+                }
+            } catch (error) {
+                showResult('test-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Helper functions
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+            const base64 = (base64String + padding)
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            checkSupport();
+            checkServiceWorker();
+            checkPermission();
+        });
+    </script>
+</body>
+</html>
+

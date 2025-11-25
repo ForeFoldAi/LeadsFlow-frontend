@@ -16,7 +16,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Settings as SettingsIcon, User, Bell, Shield, Mail, Phone, Save, Eye, EyeOff, Smartphone, Key, Users, Plus, Trash2, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { requestFirebaseToken, isFirebaseMessagingConfigured } from "@/lib/firebase";
+import { 
+  subscribeToPushNotifications, 
+  unsubscribeFromPushNotifications,
+  getCurrentSubscription,
+  isPushNotificationSupported,
+  hasNotificationPermission,
+  getNotificationPermission,
+  requestNotificationPermission,
+  type PushSubscription
+} from "@/lib/web-push";
 import { ButtonLoader, InlineLoader } from "@/components/ui/loader";
 import { profileService, notificationsService } from "@/lib/apis";
 import { useLocation } from "wouter";
@@ -197,13 +206,12 @@ export default function Settings() {
     exportNotes: true
   });
 
-  const isPushConfigAvailable = isFirebaseMessagingConfigured();
-  const isBrowserPushSupported = typeof window !== 'undefined' && 'Notification' in window && typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
-  const canEnableBrowserPush = isPushConfigAvailable && isBrowserPushSupported;
+  const isBrowserPushSupported = isPushNotificationSupported();
+  const canEnableBrowserPush = isBrowserPushSupported;
 
   type SaveNotificationPayload = {
     settings: Record<string, any>;
-    pushToken?: string | null;
+    pushSubscription?: PushSubscription | null;
     unsubscribePush?: boolean;
   };
 
@@ -394,18 +402,34 @@ export default function Settings() {
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
   const [isTestingNotification, setIsTestingNotification] = useState(false);
 
-  const saveNotifications = async ({ settings, pushToken, unsubscribePush }: SaveNotificationPayload) => {
+  const saveNotifications = async ({ settings, pushSubscription, unsubscribePush }: SaveNotificationPayload) => {
     setIsSavingNotifications(true);
     try {
       // Handle browser push subscription/unsubscription separately
-      if (pushToken && settings.browserPush) {
+      if (pushSubscription && settings.browserPush) {
         // Subscribe to push notifications
-        await notificationsService.subscribe(pushToken);
-        localStorage.setItem('fcmToken', pushToken);
+        console.log('[Settings] Saving push subscription:', pushSubscription);
+        try {
+          const subscribeResponse = await notificationsService.subscribe(pushSubscription);
+          console.log('[Settings] Subscription saved to backend:', subscribeResponse);
+          localStorage.setItem('pushSubscription', JSON.stringify(pushSubscription));
+        } catch (subscribeError: any) {
+          console.error('[Settings] Failed to save subscription to backend:', subscribeError);
+          throw new Error(
+            subscribeError?.response?.data?.message || 
+            'Failed to save push subscription. Please try again.'
+          );
+        }
       } else if (unsubscribePush || !settings.browserPush) {
         // Unsubscribe from push notifications
-        await notificationsService.unsubscribe();
-        localStorage.removeItem('fcmToken');
+        try {
+          await notificationsService.unsubscribe();
+          await unsubscribeFromPushNotifications();
+          localStorage.removeItem('pushSubscription');
+        } catch (unsubscribeError: any) {
+          console.error('[Settings] Failed to unsubscribe:', unsubscribeError);
+          // Don't throw - allow settings to save even if unsubscribe fails
+        }
       }
 
       // Prepare notification settings DTO (without pushSubscription for browser push)
@@ -423,6 +447,19 @@ export default function Settings() {
       // Update other notification settings via profile API
       const updated = await profileService.updateNotificationSettings(notificationDto);
       
+      // Verify subscription was saved if we just subscribed
+      if (pushSubscription && settings.browserPush) {
+        try {
+          const status = await notificationsService.getStatus();
+          console.log('[Settings] Subscription status after save:', status);
+          if (!status.subscribed) {
+            console.warn('[Settings] Warning: Subscription may not have been saved properly');
+          }
+        } catch (statusError) {
+          console.warn('[Settings] Could not verify subscription status:', statusError);
+        }
+      }
+      
       // Update local state
       setNotificationSettings({
         newLeads: updated.newLeads,
@@ -432,12 +469,14 @@ export default function Settings() {
         browserPush: updated.browserPush,
         dailySummary: updated.dailySummary,
         emailNotifications: updated.emailNotifications,
-        pushSubscription: pushToken || updated.pushSubscription,
+        pushSubscription: pushSubscription || updated.pushSubscription,
       });
 
       toast({
         title: "Success",
-        description: "Notification settings saved successfully",
+        description: pushSubscription && settings.browserPush 
+          ? "Notification settings saved successfully. Your push subscription is now active."
+          : "Notification settings saved successfully",
       });
     } catch (error: any) {
       console.error("Error saving notifications:", error);
@@ -457,16 +496,61 @@ export default function Settings() {
   const handleTestNotification = async () => {
     setIsTestingNotification(true);
     try {
+      // First check if user has a subscription
+      if (!notificationSettings.browserPush) {
+        toast({
+          title: "Notifications Disabled",
+          description: "Please enable browser notifications first before testing.",
+          variant: "destructive",
+        });
+        setIsTestingNotification(false);
+        return;
+      }
+
+      // Check if subscription exists locally
+      const localSubscription = await getCurrentSubscription();
+      console.log('[Settings] Local subscription:', localSubscription ? 'Found' : 'Not found');
+      
+      if (!localSubscription) {
+        toast({
+          title: "No Subscription Found",
+          description: "Please save your notification settings first to create a subscription, then try testing again.",
+          variant: "destructive",
+        });
+        setIsTestingNotification(false);
+        return;
+      }
+
+      // Try to send test notification - let backend handle validation
+      console.log('[Settings] Sending test notification...');
       const response = await notificationsService.test();
+      console.log('[Settings] Test notification response:', response);
+      
       toast({
         title: "Test Notification Sent",
-        description: response.message || "A test notification has been sent to your device.",
+        description: response.message || "A test notification has been sent to your device. Check your browser notifications!",
       });
     } catch (error: any) {
-      console.error("Error testing notification:", error);
-      const errorMessage = error?.response?.data?.message || 
-                          error?.message || 
-                          "Failed to send test notification. Please try again.";
+      console.error("[Settings] Error testing notification:", error);
+      console.error("[Settings] Error details:", {
+        status: error?.response?.status,
+        data: error?.response?.data,
+        message: error?.message
+      });
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to send test notification. Please try again.";
+      
+      if (error?.response?.status === 404) {
+        errorMessage = "No subscription found on server. Please save your notification settings again.";
+      } else if (error?.response?.status === 400) {
+        errorMessage = error?.response?.data?.message || "Invalid subscription. Please save your notification settings again.";
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
         description: errorMessage,
@@ -671,48 +755,30 @@ export default function Settings() {
       };
     }
 
-    if (
-      !isPushConfigAvailable ||
-      typeof window === 'undefined' ||
-      !('Notification' in window) ||
-      typeof navigator === 'undefined' ||
-      !('serviceWorker' in navigator)
-    ) {
+    if (!isBrowserPushSupported) {
       throw new Error('PushUnsupported');
     }
 
-    if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        throw new Error('PushPermissionDenied');
-      }
-    } else if (Notification.permission === 'denied') {
+    // Request permission if needed
+    const permission = getNotificationPermission();
+    if (permission === 'default') {
+      await requestNotificationPermission();
+    } else if (permission === 'denied') {
       throw new Error('PushPermissionDenied');
     }
 
-    const token = await requestFirebaseToken();
-    if (!token) {
-      throw new Error('PushTokenUnavailable');
+    // Subscribe to push notifications
+    const subscription = await subscribeToPushNotifications();
+    if (!subscription) {
+      throw new Error('PushSubscriptionUnavailable');
     }
-
-    const deviceInfo = navigator.userAgent ? navigator.userAgent.slice(0, 255) : 'browser';
-    const nowIso = new Date().toISOString();
 
     return {
       settings: {
         ...baseSettings,
-        pushSubscription: {
-          tokens: [
-            {
-              token,
-              platform: 'web',
-              updatedAt: nowIso,
-              device: deviceInfo,
-            },
-          ],
-        },
+        pushSubscription: subscription,
       },
-      pushToken: token,
+      pushSubscription: subscription,
     };
   };
 
@@ -734,13 +800,13 @@ export default function Settings() {
       } else if (error?.message === 'PushUnsupported') {
         toast({
           title: "Push Notifications",
-          description: "Browser push notifications are not supported in this environment or Firebase is not configured.",
+          description: "Browser push notifications are not supported in this environment. Please use a modern browser with HTTPS.",
           variant: "destructive",
         });
-      } else if (error?.message === 'PushTokenUnavailable') {
+      } else if (error?.message === 'PushSubscriptionUnavailable') {
         toast({
           title: "Push Notifications",
-          description: "We couldn't generate a push token for this browser. Please try again.",
+          description: "We couldn't create a push subscription for this browser. Please try again.",
           variant: "destructive",
         });
       } else {
@@ -1262,32 +1328,40 @@ export default function Settings() {
                   />
                 </div>
                 {notificationSettings.browserPush && canEnableBrowserPush && (
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleTestNotification}
-                      disabled={isTestingNotification}
-                      className="text-xs sm:text-sm"
-                    >
-                      {isTestingNotification ? (
-                        <>
-                          <ButtonLoader className="mr-2" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Smartphone className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                          Test Notification
-                        </>
-                      )}
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTestNotification}
+                        disabled={isTestingNotification || !notificationSettings.pushSubscription}
+                        className="text-xs sm:text-sm"
+                        title={!notificationSettings.pushSubscription ? "Please save your settings first to create a subscription" : ""}
+                      >
+                        {isTestingNotification ? (
+                          <>
+                            <ButtonLoader className="mr-2" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Smartphone className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                            Test Notification
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    {!notificationSettings.pushSubscription && (
+                      <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-md">
+                        💡 Save your settings first to create a push subscription, then you can test notifications.
+                      </p>
+                    )}
                   </div>
                 )}
                 {!canEnableBrowserPush && (
                   <p className="text-xs text-gray-400">
-                    Browser push notifications require HTTPS, service worker support, and Firebase configuration.
+                    Browser push notifications require HTTPS and service worker support. Please use a modern browser.
                   </p>
                 )}
                 <div className="flex items-center justify-between">
@@ -1813,22 +1887,23 @@ function UserManagement() {
     <div className="space-y-4 sm:space-y-6">
             <Card>
               <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-                <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
+            <div className="flex-1">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5" />
                 User Management
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm mt-1">
                 Create and manage user access. Control permissions for viewing, editing, and adding leads.
                 </CardDescription>
             </div>
             <Button
               onClick={handleOpenDialog}
-              className="text-xs sm:text-sm"
+              className="text-xs sm:text-sm w-full sm:w-auto"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add New User
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Add New User</span>
+              <span className="sm:hidden">Add User</span>
             </Button>
           </div>
               </CardHeader>
@@ -1836,19 +1911,19 @@ function UserManagement() {
 
       {/* Add/Edit User Dialog */}
       <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
-            <DialogTitle>{editingUser ? "Edit User" : "Create New User"}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">{editingUser ? "Edit User" : "Create New User"}</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               {editingUser
                 ? "Update user information and permissions"
                 : "Add a new user and set their permissions for accessing leads data"}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name *</Label>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="name" className="text-xs sm:text-sm">Full Name *</Label>
                 <Input
                   id="name"
                   {...form.register("name")}
@@ -1860,8 +1935,8 @@ function UserManagement() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="email" className="text-xs sm:text-sm">Email *</Label>
                 <Input
                   id="email"
                   type="email"
@@ -1876,8 +1951,8 @@ function UserManagement() {
 
               {!editingUser && (
                 <>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password *</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="password" className="text-xs sm:text-sm">Password *</Label>
                     <div className="relative">
                       <Input
                         id="password"
@@ -1890,10 +1965,10 @@ function UserManagement() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-full px-2 sm:px-3 py-2 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                       </Button>
                     </div>
                     {form.formState.errors.password && (
@@ -1901,8 +1976,8 @@ function UserManagement() {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-xs sm:text-sm">Confirm Password *</Label>
                     <div className="relative">
                       <Input
                         id="confirmPassword"
@@ -1915,10 +1990,10 @@ function UserManagement() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-full px-2 sm:px-3 py-2 hover:bg-transparent"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       >
-                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                       </Button>
                     </div>
                     {form.formState.errors.confirmPassword && (
@@ -1930,8 +2005,8 @@ function UserManagement() {
 
               {editingUser && (
                 <>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">New Password (Optional)</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="password" className="text-xs sm:text-sm">New Password (Optional)</Label>
                     <div className="relative">
                       <Input
                         id="password"
@@ -1944,10 +2019,10 @@ function UserManagement() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-full px-2 sm:px-3 py-2 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                       </Button>
                     </div>
                     {form.formState.errors.password && (
@@ -1955,8 +2030,8 @@ function UserManagement() {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-xs sm:text-sm">Confirm New Password</Label>
                     <div className="relative">
                       <Input
                         id="confirmPassword"
@@ -1969,10 +2044,10 @@ function UserManagement() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-full px-2 sm:px-3 py-2 hover:bg-transparent"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       >
-                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                       </Button>
                     </div>
                     {form.formState.errors.confirmPassword && (
@@ -1982,8 +2057,8 @@ function UserManagement() {
                 </>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="role" className="text-xs sm:text-sm">Role *</Label>
                   <Select
                   value={form.watch("role")}
                   onValueChange={(value) => {
@@ -2010,8 +2085,8 @@ function UserManagement() {
                 </div>
 
               {form.watch("role") === UserRole.OTHER && (
-                <div className="space-y-2">
-                  <Label htmlFor="customRole">Custom Role *</Label>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label htmlFor="customRole" className="text-xs sm:text-sm">Custom Role *</Label>
                   <Input
                     id="customRole"
                     {...form.register("customRole")}
@@ -2024,8 +2099,8 @@ function UserManagement() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="companyName">Company Name *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="companyName" className="text-xs sm:text-sm">Company Name *</Label>
                 <Input
                   id="companyName"
                   {...form.register("companyName")}
@@ -2040,13 +2115,13 @@ function UserManagement() {
 
                 <Separator />
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <h4 className="font-medium text-sm sm:text-base">Lead Access Permissions</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label htmlFor="canViewLeads">View Leads</Label>
-                    <p className="text-xs text-gray-500">Can view lead data</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                <div className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <Label htmlFor="canViewLeads" className="text-xs sm:text-sm">View Leads</Label>
+                    <p className="text-xs text-gray-500 mt-0.5">Can view lead data</p>
                     </div>
                   <Switch
                     id="canViewLeads"
@@ -2055,10 +2130,10 @@ function UserManagement() {
                   />
                   </div>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label htmlFor="canEditLeads">Edit Leads</Label>
-                    <p className="text-xs text-gray-500">Can edit existing leads</p>
+                <div className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <Label htmlFor="canEditLeads" className="text-xs sm:text-sm">Edit Leads</Label>
+                    <p className="text-xs text-gray-500 mt-0.5">Can edit existing leads</p>
                   </div>
                   <Switch
                     id="canEditLeads"
@@ -2067,10 +2142,10 @@ function UserManagement() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label htmlFor="canAddLeads">Add Leads</Label>
-                    <p className="text-xs text-gray-500">Can create new leads</p>
+                <div className="flex items-center justify-between p-2 sm:p-3 border rounded-lg sm:col-span-2 md:col-span-1">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <Label htmlFor="canAddLeads" className="text-xs sm:text-sm">Add Leads</Label>
+                    <p className="text-xs text-gray-500 mt-0.5">Can create new leads</p>
                 </div>
                   <Switch
                     id="canAddLeads"
@@ -2081,23 +2156,23 @@ function UserManagement() {
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleCloseDialog}
-                className="text-xs sm:text-sm"
+                className="text-xs sm:text-sm w-full sm:w-auto order-2 sm:order-1"
                 disabled={isSubmittingUser}
               >
                 Cancel
               </Button>
               <Button 
                 type="submit" 
-                className="text-xs sm:text-sm"
+                className="text-xs sm:text-sm w-full sm:w-auto order-1 sm:order-2"
                 disabled={isSubmittingUser}
               >
                 {isSubmittingUser ? (
-                  <div className="flex items-center">
+                  <div className="flex items-center justify-center">
                     <ButtonLoader size={14} color="#ffffff" />
                     <span className="ml-2">
                       {editingUser ? "Updating..." : "Creating..."}
@@ -2114,54 +2189,54 @@ function UserManagement() {
 
       {/* Users List */}
       <Card>
-        <CardHeader>
-          <CardTitle>All Users ({users.length})</CardTitle>
-          <CardDescription>Manage user access and permissions</CardDescription>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">All Users ({users.length})</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Manage user access and permissions</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           {isLoadingUsers ? (
             <InlineLoader text="Loading users..." />
           ) : users.length === 0 ? (
-            <div className="py-8 text-center text-gray-500">
-              <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p>No users found. Create your first user to get started.</p>
+            <div className="py-6 sm:py-8 text-center text-gray-500">
+              <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-gray-400" />
+              <p className="text-sm sm:text-base">No users found. Create your first user to get started.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 sm:space-y-4">
               {users.map((user: any) => (
                 <Card key={user.id} className="border">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
-                            <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start sm:items-center gap-2 sm:gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center flex-shrink-0">
+                            <User className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400" />
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-semibold text-sm sm:text-base">{user.fullName || user.name}</h4>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                              <h4 className="font-semibold text-sm sm:text-base truncate">{user.fullName || user.name}</h4>
                               {user.id === currentUser.id && (
-                                <Badge variant="outline" className="text-xs">Current User</Badge>
+                                <Badge variant="outline" className="text-xs w-fit">Current User</Badge>
                               )}
                             </div>
-                            <p className="text-sm text-gray-500">{user.email}</p>
-                            <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs sm:text-sm text-gray-500 truncate">{user.email}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-1">
                               <Badge variant="outline" className="text-xs">
                                 {user.role === UserRole.OTHER ? user.customRole || "Other" : user.role}
                               </Badge>
-                              <div className="flex items-center gap-1 text-xs text-gray-400">
+                              <div className="flex items-center gap-1 flex-wrap">
                                 {user.permissions?.canViewLeads && (
-                                  <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                  <span className="px-1.5 sm:px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded text-xs">
                                     View
                                   </span>
                                 )}
                                 {user.permissions?.canEditLeads && (
-                                  <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                  <span className="px-1.5 sm:px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs">
                                     Edit
                                   </span>
                                 )}
                                 {user.permissions?.canAddLeads && (
-                                  <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
+                                  <span className="px-1.5 sm:px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs">
                                     Add
                                   </span>
                                 )}
@@ -2170,27 +2245,29 @@ function UserManagement() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 sm:gap-2 justify-end sm:justify-start">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEditClick(user)}
-                          className="text-xs sm:text-sm"
+                          className="text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
                         >
-                          <Edit className="h-4 w-4" />
-              </Button>
+                          <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          <span className="ml-1 sm:hidden">Edit</span>
+                        </Button>
                         {user.id !== currentUser.id && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteUser(user.id, user.fullName || user.name)}
-                            className="text-red-600 hover:text-red-700 text-xs sm:text-sm"
+                            className="text-red-600 hover:text-red-700 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            <span className="ml-1 sm:hidden">Delete</span>
                           </Button>
                         )}
-            </div>
-      </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
