@@ -13,6 +13,7 @@ export { default as leadsService } from './leads.service';
 export { default as usersService } from './users.service';
 export { default as analyticsService } from './analytics.service';
 export { default as profileService } from './profile.service';
+export { default as notificationsService } from './notifications.service';
 
 // Export all types
 export * from './types';

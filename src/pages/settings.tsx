@@ -18,7 +18,7 @@ import { Settings as SettingsIcon, User, Bell, Shield, Mail, Phone, Save, Eye, E
 import { useToast } from "@/hooks/use-toast";
 import { requestFirebaseToken, isFirebaseMessagingConfigured } from "@/lib/firebase";
 import { ButtonLoader, InlineLoader } from "@/components/ui/loader";
-import { profileService } from "@/lib/apis";
+import { profileService, notificationsService } from "@/lib/apis";
 import { useLocation } from "wouter";
 import type { 
   ProfilePreferencesResponse, 
@@ -392,11 +392,23 @@ export default function Settings() {
   };
 
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  const [isTestingNotification, setIsTestingNotification] = useState(false);
 
   const saveNotifications = async ({ settings, pushToken, unsubscribePush }: SaveNotificationPayload) => {
     setIsSavingNotifications(true);
     try {
-      // Prepare notification settings DTO
+      // Handle browser push subscription/unsubscription separately
+      if (pushToken && settings.browserPush) {
+        // Subscribe to push notifications
+        await notificationsService.subscribe(pushToken);
+        localStorage.setItem('fcmToken', pushToken);
+      } else if (unsubscribePush || !settings.browserPush) {
+        // Unsubscribe from push notifications
+        await notificationsService.unsubscribe();
+        localStorage.removeItem('fcmToken');
+      }
+
+      // Prepare notification settings DTO (without pushSubscription for browser push)
       const notificationDto: UpdateNotificationSettingsDto = {
         newLeads: settings.newLeads,
         followUps: settings.followUps,
@@ -405,10 +417,10 @@ export default function Settings() {
         browserPush: settings.browserPush,
         dailySummary: settings.dailySummary,
         emailNotifications: settings.emailNotifications,
-        pushSubscription: pushToken || undefined,
+        // Don't send pushSubscription here - it's handled by subscribe/unsubscribe endpoints
       };
 
-      // Update via API
+      // Update other notification settings via profile API
       const updated = await profileService.updateNotificationSettings(notificationDto);
       
       // Update local state
@@ -420,14 +432,8 @@ export default function Settings() {
         browserPush: updated.browserPush,
         dailySummary: updated.dailySummary,
         emailNotifications: updated.emailNotifications,
-        pushSubscription: updated.pushSubscription,
+        pushSubscription: pushToken || updated.pushSubscription,
       });
-
-      if (pushToken) {
-        localStorage.setItem('fcmToken', pushToken);
-      } else if (unsubscribePush) {
-        localStorage.removeItem('fcmToken');
-      }
 
       toast({
         title: "Success",
@@ -445,6 +451,29 @@ export default function Settings() {
       });
     } finally {
       setIsSavingNotifications(false);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setIsTestingNotification(true);
+    try {
+      const response = await notificationsService.test();
+      toast({
+        title: "Test Notification Sent",
+        description: response.message || "A test notification has been sent to your device.",
+      });
+    } catch (error: any) {
+      console.error("Error testing notification:", error);
+      const errorMessage = error?.response?.data?.message || 
+                          error?.message || 
+                          "Failed to send test notification. Please try again.";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingNotification(false);
     }
   };
 
@@ -1219,9 +1248,9 @@ export default function Settings() {
                   <InlineLoader text="Loading push notification settings..." />
                 ) : (
                   <>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="browser-push" className="text-xs sm:text-sm">Browser Notifications</Label>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="browser-push" className="text-xs sm:text-sm">Browser Notifications</Label>
                     <p className="text-xs sm:text-sm text-gray-500">Show notifications in your browser</p>
                   </div>
                   <Switch
@@ -1232,6 +1261,30 @@ export default function Settings() {
                     data-testid="switch-browser-push"
                   />
                 </div>
+                {notificationSettings.browserPush && canEnableBrowserPush && (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTestNotification}
+                      disabled={isTestingNotification}
+                      className="text-xs sm:text-sm"
+                    >
+                      {isTestingNotification ? (
+                        <>
+                          <ButtonLoader className="mr-2" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Smartphone className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                          Test Notification
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
                 {!canEnableBrowserPush && (
                   <p className="text-xs text-gray-400">
                     Browser push notifications require HTTPS, service worker support, and Firebase configuration.

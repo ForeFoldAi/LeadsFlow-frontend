@@ -50,6 +50,30 @@ export async function registerFirebaseServiceWorker(): Promise<ServiceWorkerRegi
   if (!swRegistrationPromise) {
     swRegistrationPromise = navigator.serviceWorker
       .register("/firebase-messaging-sw.js", { scope: "/" })
+      .then(async (registration) => {
+        // Send Firebase config to service worker
+        if (registration.active) {
+          registration.active.postMessage({
+            type: 'FIREBASE_CONFIG',
+            config: firebaseConfig,
+          });
+        } else if (registration.installing) {
+          registration.installing.addEventListener('statechange', () => {
+            if (registration.active) {
+              registration.active.postMessage({
+                type: 'FIREBASE_CONFIG',
+                config: firebaseConfig,
+              });
+            }
+          });
+        } else if (registration.waiting) {
+          registration.waiting.postMessage({
+            type: 'FIREBASE_CONFIG',
+            config: firebaseConfig,
+          });
+        }
+        return registration;
+      })
       .catch((error) => {
         console.error("[Firebase] Failed to register messaging service worker:", error);
         return null;
