@@ -166,6 +166,9 @@ export default function ImportDialog({ onImportSuccess }: ImportDialogProps) {
               queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
               queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
 
+              // Dispatch custom event to notify table to refetch
+              window.dispatchEvent(new CustomEvent('leadsImported'));
+
               if (importResponse.successful > 0) {
                 toast({
                   title: "Import Successful",

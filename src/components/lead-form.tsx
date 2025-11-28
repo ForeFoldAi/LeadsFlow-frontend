@@ -169,6 +169,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       
+      // Dispatch custom event to notify table to refetch
+      window.dispatchEvent(new CustomEvent('leadAdded'));
+      
       toast({
         title: "Lead Added Successfully",
         description: "The new lead has been saved.",
@@ -218,6 +221,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
+      
+      // Dispatch custom event to notify table to refetch
+      window.dispatchEvent(new CustomEvent('leadUpdated'));
       
       toast({
         title: "Lead Updated Successfully",

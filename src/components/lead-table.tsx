@@ -162,8 +162,10 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
   const lastErrorTimeRef = React.useRef<number>(0);
   const cooldownPeriodRef = React.useRef<number>(30000); // 30 seconds cooldown
   const MAX_RETRIES = 3;
+  const fetchTriggerRef = React.useRef(0); // Trigger refetch when this changes
 
-  React.useEffect(() => {
+  // Extract fetchLeads function so it can be called from multiple places
+  const fetchLeads = React.useCallback(async () => {
     // Create a key from current filters to detect actual changes
     const filtersKey = JSON.stringify({ filters, currentPage, itemsPerPage, followupFilter });
     
@@ -203,104 +205,128 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
       return;
     }
 
-    const fetchLeads = async () => {
-      isFetchingRef.current = true;
-      setIsLoading(true);
-      try {
-        // Map followupFilter to API format
-        let followupDateFilter: 'overdue' | 'due_soon' | 'future' | undefined = undefined;
-        if (followupFilter !== 'all') {
-          // Map 'approaching' to 'due_soon' as per API spec
-          followupDateFilter = followupFilter === 'approaching' ? 'due_soon' : followupFilter;
-        }
-
-        const query: GetLeadsQuery = {
-          search: filters.search || undefined,
-          status: filters.status && filters.status.length > 0 ? filters.status : undefined,
-          category: filters.category || undefined,
-          city: filters.city || undefined,
-          page: currentPage,
-          limit: itemsPerPage,
-          followupDateFilter: followupDateFilter,
-        };
-
-        const response = await leadsService.getAllLeads(query);
-        setLeads(response.data);
-        setTotalLeads(response.meta.total);
-        // Reset error count on success
-        errorCountRef.current = 0;
-        // Hide network error dialog if it was shown
-        setShowNetworkError(false);
-      } catch (error: any) {
-        console.error("Error loading leads:", error);
-        
-        // Check if it's an authentication error (401 or 403)
-        const isAuthError = error?.response?.status === 401 || error?.response?.status === 403;
-        
-        // Handle authentication errors with auto-logout
-        if (isAuthError) {
-          handleAutoLogout();
-          return;
-        }
-        
-        // Check if it's a network error (no response from server)
-        const isNetworkError = !error?.response || 
-                              error?.code === 'ECONNABORTED' || 
-                              error?.code === 'ERR_NETWORK' || 
-                              error?.code === 'ERR_INTERNET_DISCONNECTED' ||
-                              error?.message?.includes('Network Error') || 
-                              error?.message?.includes('timeout') ||
-                              error?.message?.includes('Failed to fetch') ||
-                              error?.message?.includes('Server not found');
-        const isServerError = error?.response?.status >= 500;
-        const isServerNotFound = error?.response?.status === 404 || 
-                                error?.message?.includes('Server not found') ||
-                                error?.message?.includes('Failed to fetch');
-        
-        // Increment error count for network/server errors
-        if (isNetworkError || isServerError || isServerNotFound) {
-          errorCountRef.current += 1;
-          lastErrorTimeRef.current = Date.now();
-        } else {
-          // Reset on client errors (4xx) that aren't server issues
-          errorCountRef.current = 0;
-          lastErrorTimeRef.current = 0;
-        }
-
-        // Show network error dialog after 2 consecutive errors or immediately for server not found
-        if (errorCountRef.current >= 2 || isServerNotFound) {
-          let errorMsg = "Server not found. Please check your API URL configuration and try again.";
-          
-          if (isServerNotFound) {
-            errorMsg = "Server not found. Please contact support if the problem persists.";
-          } else if (isNetworkError) {
-            errorMsg = "Unable to connect to the server. Please check your internet connection.";
-          } else if (isServerError) {
-            errorMsg = "Server is temporarily unavailable. Please try again later.";
-          }
-          
-          setNetworkErrorMessage(errorMsg);
-          setShowNetworkError(true);
-          setLeads([]);
-          setTotalLeads(0);
-        } else {
-          // Show toast for first error
-          setLeads([]);
-          setTotalLeads(0);
-          toast({
-            title: "Error",
-            description: error?.response?.data?.message || error?.message || "Failed to load leads. Please try again.",
-            variant: "destructive",
-          });
-        }
-      } finally {
-        setIsLoading(false);
-        isFetchingRef.current = false;
+    isFetchingRef.current = true;
+    setIsLoading(true);
+    try {
+      // Map followupFilter to API format
+      let followupDateFilter: 'overdue' | 'due_soon' | 'future' | undefined = undefined;
+      if (followupFilter !== 'all') {
+        // Map 'approaching' to 'due_soon' as per API spec
+        followupDateFilter = followupFilter === 'approaching' ? 'due_soon' : followupFilter;
       }
+
+      const query: GetLeadsQuery = {
+        search: filters.search || undefined,
+        status: filters.status && filters.status.length > 0 ? filters.status : undefined,
+        category: filters.category || undefined,
+        city: filters.city || undefined,
+        page: currentPage,
+        limit: itemsPerPage,
+        followupDateFilter: followupDateFilter,
+      };
+
+      const response = await leadsService.getAllLeads(query);
+      setLeads(response.data);
+      setTotalLeads(response.meta.total);
+      // Reset error count on success
+      errorCountRef.current = 0;
+      // Hide network error dialog if it was shown
+      setShowNetworkError(false);
+    } catch (error: any) {
+      console.error("Error loading leads:", error);
+      
+      // Check if it's an authentication error (401 or 403)
+      const isAuthError = error?.response?.status === 401 || error?.response?.status === 403;
+      
+      // Handle authentication errors with auto-logout
+      if (isAuthError) {
+        handleAutoLogout();
+        return;
+      }
+      
+      // Check if it's a network error (no response from server)
+      const isNetworkError = !error?.response || 
+                            error?.code === 'ECONNABORTED' || 
+                            error?.code === 'ERR_NETWORK' || 
+                            error?.code === 'ERR_INTERNET_DISCONNECTED' ||
+                            error?.message?.includes('Network Error') || 
+                            error?.message?.includes('timeout') ||
+                            error?.message?.includes('Failed to fetch') ||
+                            error?.message?.includes('Server not found');
+      const isServerError = error?.response?.status >= 500;
+      const isServerNotFound = error?.response?.status === 404 || 
+                              error?.message?.includes('Server not found') ||
+                              error?.message?.includes('Failed to fetch');
+      
+      // Increment error count for network/server errors
+      if (isNetworkError || isServerError || isServerNotFound) {
+        errorCountRef.current += 1;
+        lastErrorTimeRef.current = Date.now();
+      } else {
+        // Reset on client errors (4xx) that aren't server issues
+        errorCountRef.current = 0;
+        lastErrorTimeRef.current = 0;
+      }
+
+      // Show network error dialog after 2 consecutive errors or immediately for server not found
+      if (errorCountRef.current >= 2 || isServerNotFound) {
+        let errorMsg = "Server not found. Please check your API URL configuration and try again.";
+        
+        if (isServerNotFound) {
+          errorMsg = "Server not found. Please contact support if the problem persists.";
+        } else if (isNetworkError) {
+          errorMsg = "Unable to connect to the server. Please check your internet connection.";
+        } else if (isServerError) {
+          errorMsg = "Server is temporarily unavailable. Please try again later.";
+        }
+        
+        setNetworkErrorMessage(errorMsg);
+        setShowNetworkError(true);
+        setLeads([]);
+        setTotalLeads(0);
+      } else {
+        // Show toast for first error
+        setLeads([]);
+        setTotalLeads(0);
+        toast({
+          title: "Error",
+          description: error?.response?.data?.message || error?.message || "Failed to load leads. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+      isFetchingRef.current = false;
+    }
+  }, [filters, currentPage, itemsPerPage, followupFilter, showNetworkError]);
+
+  // Fetch leads when filters or pagination change
+  React.useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
+  // Listen for custom events when leads are added/updated/deleted
+  React.useEffect(() => {
+    const handleLeadChange = () => {
+      // Small delay to ensure the mutation has completed
+      setTimeout(() => {
+        fetchLeads();
+      }, 100);
     };
 
-    fetchLeads();
-  }, [filters, currentPage, itemsPerPage, followupFilter]);
+    // Listen for custom events
+    window.addEventListener('leadAdded', handleLeadChange);
+    window.addEventListener('leadUpdated', handleLeadChange);
+    window.addEventListener('leadDeleted', handleLeadChange);
+    window.addEventListener('leadsImported', handleLeadChange);
+
+    return () => {
+      window.removeEventListener('leadAdded', handleLeadChange);
+      window.removeEventListener('leadUpdated', handleLeadChange);
+      window.removeEventListener('leadDeleted', handleLeadChange);
+      window.removeEventListener('leadsImported', handleLeadChange);
+    };
+  }, [fetchLeads]);
 
   // Helper functions for status colors and followup status
   const getStatusColor = (status: string) => {
@@ -371,6 +397,9 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('leadDeleted'));
       
       toast({
         title: "Success",
