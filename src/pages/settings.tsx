@@ -423,7 +423,7 @@ export default function Settings() {
       } else if (unsubscribePush || !settings.browserPush) {
         // Unsubscribe from push notifications
         try {
-          await notificationsService.unsubscribe();
+        await notificationsService.unsubscribe();
           await unsubscribeFromPushNotifications();
           localStorage.removeItem('pushSubscription');
         } catch (unsubscribeError: any) {
@@ -1329,28 +1329,28 @@ export default function Settings() {
                 </div>
                 {notificationSettings.browserPush && canEnableBrowserPush && (
                   <div className="space-y-2">
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleTestNotification}
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTestNotification}
                         disabled={isTestingNotification || !notificationSettings.pushSubscription}
-                        className="text-xs sm:text-sm"
+                      className="text-xs sm:text-sm"
                         title={!notificationSettings.pushSubscription ? "Please save your settings first to create a subscription" : ""}
-                      >
-                        {isTestingNotification ? (
-                          <>
-                            <ButtonLoader className="mr-2" />
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Smartphone className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                            Test Notification
-                          </>
-                        )}
-                      </Button>
+                    >
+                      {isTestingNotification ? (
+                        <>
+                          <ButtonLoader className="mr-2" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Smartphone className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                          Test Notification
+                        </>
+                      )}
+                    </Button>
                     </div>
                     {!notificationSettings.pushSubscription && (
                       <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-md">

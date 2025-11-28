@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import AppHeader from "@/components/app-header";
+import AppFooter from "@/components/app-footer";
 import MobileBottomNav from "@/components/mobile-bottom-nav";
 
 interface AppLayoutProps {
@@ -8,11 +9,12 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <AppHeader />
-      <main className="pt-16 md:pt-20 pb-24 md:pb-8 min-h-screen">
+      <main className="pt-16 md:pt-20 pb-24 md:pb-8 flex-1">
         {children}
       </main>
+      <AppFooter />
       <MobileBottomNav />
     </div>
   );

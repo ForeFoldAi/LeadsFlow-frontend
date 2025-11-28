@@ -149,6 +149,14 @@ export const leadsService = {
     );
     return response.data;
   },
+
+  /**
+   * Get list of cities from leads
+   */
+  getCities: async (): Promise<string[]> => {
+    const response = await axiosInstance.get<string[]>('/leads/cities');
+    return response.data;
+  },
 };
 
 export default leadsService;

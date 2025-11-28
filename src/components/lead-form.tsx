@@ -105,7 +105,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       name: data.name,
       phoneNumber: data.phoneNumber,
       email: data.email || undefined,
-      dateOfBirth: data.dateOfBirth ? data.dateOfBirth : null,
+      dateOfBirth: data.dateOfBirth ? data.dateOfBirth : undefined,
       city: data.city || undefined,
       state: data.state || undefined,
       country: data.country || undefined,
@@ -113,9 +113,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       companyName: data.companyName || undefined,
       designation: data.designation || undefined,
       customerCategory: data.customerCategory as CustomerCategory,
-      lastContactedDate: data.lastContactedDate ? data.lastContactedDate : null,
+      lastContactedDate: data.lastContactedDate ? data.lastContactedDate : undefined,
       lastContactedBy: data.lastContactedBy || undefined,
-      nextFollowupDate: data.nextFollowupDate ? data.nextFollowupDate : null,
+      nextFollowupDate: data.nextFollowupDate ? data.nextFollowupDate : undefined,
       customerInterestedIn: data.customerInterestedIn || undefined,
       preferredCommunicationChannel: data.preferredCommunicationChannel || undefined,
       customCommunicationChannel: data.customCommunicationChannel || undefined,
@@ -135,7 +135,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       name: data.name,
       phoneNumber: data.phoneNumber,
       email: data.email || undefined,
-      dateOfBirth: data.dateOfBirth ? data.dateOfBirth : null,
+      dateOfBirth: data.dateOfBirth ? data.dateOfBirth : undefined,
       city: data.city || undefined,
       state: data.state || undefined,
       country: data.country || undefined,
@@ -143,9 +143,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       companyName: data.companyName || undefined,
       designation: data.designation || undefined,
       customerCategory: data.customerCategory as CustomerCategory,
-      lastContactedDate: data.lastContactedDate ? data.lastContactedDate : null,
+      lastContactedDate: data.lastContactedDate ? data.lastContactedDate : undefined,
       lastContactedBy: data.lastContactedBy || undefined,
-      nextFollowupDate: data.nextFollowupDate ? data.nextFollowupDate : null,
+      nextFollowupDate: data.nextFollowupDate ? data.nextFollowupDate : undefined,
       customerInterestedIn: data.customerInterestedIn || undefined,
       preferredCommunicationChannel: data.preferredCommunicationChannel || undefined,
       customCommunicationChannel: data.customCommunicationChannel || undefined,
@@ -381,8 +381,8 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                       <FormLabel className="text-xs">Additional Notes</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Add any additional notes (max 100 characters)"
-                          maxLength={100}
+                          placeholder="Add any additional notes (max 200 characters)"
+                          maxLength={200}
                           rows={1}
                           className="min-h-[32px] resize-none"
                           {...field}
@@ -394,7 +394,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                         />
                       </FormControl>
                       <p className="text-xs text-gray-500 mt-0.5" data-testid="text-notes-count">
-                        {notesCount}/100 characters
+                        {notesCount}/200 characters
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -1348,8 +1348,8 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                         <FormLabel className="text-xs">Additional Notes</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Add any additional notes (max 100 characters)"
-                            maxLength={100}
+                            placeholder="Add any additional notes (max 200 characters)"
+                            maxLength={200}
                             rows={1}
                             className="min-h-[32px] resize-none"
                             {...field}
@@ -1361,7 +1361,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                           />
                         </FormControl>
                         <p className="text-xs text-gray-500 mt-0.5" data-testid="text-notes-count">
-                          {notesCount}/100 characters
+                          {notesCount}/200 characters
                         </p>
                         <FormMessage />
                       </FormItem>

@@ -381,7 +381,7 @@ export default function Signup() {
               <UserPlus className="mr-2 h-5 w-5 text-blue-600" />
               Personal Information
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-sm font-medium text-gray-700">
                   Full Name *

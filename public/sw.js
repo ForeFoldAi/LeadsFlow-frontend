@@ -114,7 +114,8 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   // Get URL from notification data (backend sends absolute URL in data.url)
-  const targetUrl = event.notification.data?.url || '/dashboard';
+  // Fallback to root (/) which routes to Dashboard
+  const targetUrl = event.notification.data?.url || '/';
   
   // If URL is relative, make it absolute using current origin
   let url = targetUrl;

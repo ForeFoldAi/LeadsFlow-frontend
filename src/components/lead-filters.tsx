@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Search, ChevronDown, X } from "lucide-react";
 import React from "react";
+import { leadsService } from "@/lib/apis";
 
 interface LeadFiltersProps {
   filters: {
@@ -36,22 +37,45 @@ export default function LeadFilters({ filters, onFiltersChange }: LeadFiltersPro
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUpdatingRef = useRef(false);
 
-  // Fetch cities from user leads
-  // Get cities from localStorage (no API call)
+  // Fetch cities from API
   const [cities, setCities] = React.useState<string[]>([]);
+  const [isLoadingCities, setIsLoadingCities] = React.useState(false);
   
   React.useEffect(() => {
-    try {
-      const storedLeads = localStorage.getItem("leads");
-      if (storedLeads) {
-        const leads: any[] = JSON.parse(storedLeads);
-        const uniqueCities = Array.from(new Set(leads.map(lead => lead.city).filter(Boolean))) as string[];
-        setCities(uniqueCities.sort());
+    const fetchCities = async () => {
+      setIsLoadingCities(true);
+      try {
+        const citiesData = await leadsService.getCities();
+        console.log('[LeadFilters] Cities API response:', citiesData);
+        
+        // Handle different response formats: array, or wrapped in object
+        let citiesArray: string[] = [];
+        
+        if (Array.isArray(citiesData)) {
+          citiesArray = citiesData;
+        } else if (citiesData && typeof citiesData === 'object') {
+          // Try common response wrapper formats
+          citiesArray = (citiesData as any).cities || (citiesData as any).data || [];
+        }
+        
+        // Ensure we have an array and filter out any null/undefined values
+        const validCities = citiesArray
+          .filter((city): city is string => 
+            typeof city === 'string' && city.trim().length > 0
+          )
+          .sort();
+        
+        console.log('[LeadFilters] Processed cities:', validCities);
+        setCities(validCities);
+      } catch (error) {
+        console.error("Error loading cities:", error);
+        setCities([]);
+      } finally {
+        setIsLoadingCities(false);
       }
-    } catch (error) {
-      console.error("Error loading cities:", error);
-      setCities([]);
-    }
+    };
+
+    fetchCities();
   }, []);
 
   // Only update search value when filters change externally (not from our debounced updates)
@@ -274,17 +298,21 @@ export default function LeadFilters({ filters, onFiltersChange }: LeadFiltersPro
             </SelectContent>
           </Select>
 
-          <Select value={filters.city || "all"} onValueChange={(value) => updateFilter("city", value)}>
+          <Select value={filters.city || "all"} onValueChange={(value) => updateFilter("city", value)} disabled={isLoadingCities}>
             <SelectTrigger className="h-10 text-xs sm:text-sm w-full sm:w-auto sm:min-w-[140px]" data-testid="select-city">
-              <SelectValue placeholder="All Cities" />
+              <SelectValue placeholder={isLoadingCities ? "Loading cities..." : "All Cities"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Cities</SelectItem>
-              {cities.map((city) => (
-                <SelectItem key={city} value={city}>
-                  {city}
-                </SelectItem>
-              ))}
+              {cities.length === 0 && !isLoadingCities ? (
+                <SelectItem value="no-cities" disabled>No cities available</SelectItem>
+              ) : (
+                cities.map((city) => (
+                  <SelectItem key={city} value={city}>
+                    {city}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>

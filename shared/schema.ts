@@ -198,7 +198,7 @@ export const insertLeadSchema = createInsertSchema(leads, {
     .optional()
     .or(z.literal("")),
   additionalNotes: z.string()
-    .max(100, "Maximum 100 characters allowed")
+    .max(200, "Maximum 200 characters allowed")
     .optional()
     .or(z.literal("")),
 }).omit({ id: true, createdAt: true });
