@@ -329,7 +329,7 @@ export interface SecuritySettings {
 
 export interface UserPreferences {
   defaultView: 'table' | 'grid' | 'list';
-  itemsPerPage: '10' | '20' | '30' | '40' | '50';
+  itemsPerPage: '10' | '20' | '50' | '100';
   autoSave: boolean;
   compactMode: boolean;
   exportFormat: 'csv' | 'xlsx' | 'pdf';
@@ -378,7 +378,7 @@ export interface UpdateSecuritySettingsRequest {
 
 export interface UpdateUserPreferencesDto {
   defaultView?: LeadViewType;
-  itemsPerPage?: '10' | '20' | '30' | '40' | '50';
+  itemsPerPage?: '10' | '20' | '50' | '100';
   autoSave?: boolean;
   compactMode?: boolean;
   exportFormat?: 'csv' | 'xlsx' | 'pdf';
@@ -387,7 +387,7 @@ export interface UpdateUserPreferencesDto {
 
 export interface UpdateUserPreferencesRequest {
   defaultView?: 'table' | 'grid' | 'list';
-  itemsPerPage?: '10' | '20' | '30' | '40' | '50';
+  itemsPerPage?: '10' | '20' | '50' | '100';
   autoSave?: boolean;
   compactMode?: boolean;
   exportFormat?: 'csv' | 'xlsx' | 'pdf';
@@ -461,6 +461,11 @@ export enum LeadSource {
   OTHER = 'other',
 }
 
+export enum Sector {
+  
+  OTHER = 'other',
+}
+
 export enum LeadViewType {
   TABLE = 'table',
   GRID = 'grid',
@@ -493,6 +498,8 @@ export interface Lead {
   leadStatus?: LeadStatus;
   leadCreatedBy?: string;
   additionalNotes?: string;
+  sector?: Sector | string;
+  customSector?: string;
   userId: number;
   user?: UserBasic;
   createdAt?: string;
@@ -524,6 +531,8 @@ export interface CreateLeadDto {
   leadStatus?: LeadStatus;
   leadCreatedBy?: string;
   additionalNotes?: string;
+  sector?: Sector | string;
+  customSector?: string;
 }
 
 export interface CreateLeadRequest {
@@ -578,6 +587,8 @@ export interface UpdateLeadDto {
   leadStatus?: LeadStatus;
   leadCreatedBy?: string;
   additionalNotes?: string;
+  sector?: Sector | string;
+  customSector?: string;
 }
 
 export interface UpdateLeadRequest {
@@ -633,6 +644,8 @@ export interface LeadResponse {
   leadStatus?: string;
   leadCreatedBy?: string;
   additionalNotes?: string;
+  sector?: string;
+  customSector?: string;
   userId: number;
   user?: UserResponse;
   createdAt?: Date;
@@ -644,6 +657,7 @@ export interface GetLeadsQuery {
   status?: string | string[];
   category?: string;
   city?: string;
+  sector?: string;
   page?: number;
   limit?: number;
   leadStatus?: LeadStatus;

@@ -154,7 +154,25 @@ export const leadsService = {
    * Get list of cities from leads
    */
   getCities: async (): Promise<string[]> => {
-    const response = await axiosInstance.get<string[]>('/leads/cities');
+    const response = await axiosInstance.get<{ cities: string[] }>('/leads/cities');
+    return response.data.cities;
+  },
+
+  /**
+   * Get all available sectors (default + custom)
+   */
+  getSectors: async (): Promise<string[]> => {
+    const response = await axiosInstance.get<{ sectors: string[] }>('/leads/sectors');
+    return response.data.sectors;
+  },
+
+  /**
+   * Add a custom sector
+   */
+  addCustomSector: async (sectorName: string): Promise<{ message: string; sector: string }> => {
+    const response = await axiosInstance.post<{ message: string; sector: string }>('/leads/sectors', {
+      sector: sectorName,
+    });
     return response.data;
   },
 };

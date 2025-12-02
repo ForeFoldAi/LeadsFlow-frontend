@@ -672,7 +672,7 @@ export default function Settings() {
       // Prepare preferences DTO
       const preferencesDto: UpdateUserPreferencesDto = {
         defaultView: data.defaultView as LeadViewType,
-        itemsPerPage: data.itemsPerPage as '10' | '20' | '30' | '40' | '50',
+        itemsPerPage: data.itemsPerPage as '10' | '20' | '50' | '100',
         autoSave: data.autoSave,
         compactMode: data.compactMode,
         exportFormat: data.exportFormat as 'csv' | 'xlsx' | 'pdf',

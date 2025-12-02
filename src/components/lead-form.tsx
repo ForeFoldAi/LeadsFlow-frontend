@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +15,9 @@ import { queryClient } from "@/lib/queryClient";
 import { insertLeadSchema, type Lead, type InsertLead } from "../../shared/schema";
 import { leadsService } from "@/lib/apis";
 import type { CreateLeadDto, UpdateLeadDto, LeadResponse } from "@/lib/apis";
-import { CustomerCategory, LeadStatus, LeadSource } from "@/lib/apis";
+import { CustomerCategory, LeadStatus, LeadSource, Sector } from "@/lib/apis";
 import { User, MapPin, Building, MessageSquare, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface LeadFormProps {
   lead?: Lead | null;
@@ -35,6 +35,51 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
   const [customGeneratedByCount, setCustomGeneratedByCount] = useState(lead?.customGeneratedBy?.length || 0);
   const [customCommChannelCount, setCustomCommChannelCount] = useState(lead?.customCommunicationChannel?.length || 0);
   const [leadCreatedByCount, setLeadCreatedByCount] = useState(lead?.leadCreatedBy?.length || 0);
+  const [customSectorCount, setCustomSectorCount] = useState(lead?.customSector?.length || 0);
+  const [isCustomSectorDialogOpen, setIsCustomSectorDialogOpen] = useState(false);
+  const [customSectorInput, setCustomSectorInput] = useState("");
+  const [previousSectorValue, setPreviousSectorValue] = useState<string>("");
+
+  // Fetch available sectors
+  const { data: sectors = [], refetch: refetchSectors } = useQuery({
+    queryKey: ['/api/leads/sectors'],
+    queryFn: async () => {
+      return await leadsService.getSectors();
+    },
+  });
+
+  // Mutation to add custom sector
+  const addCustomSectorMutation = useMutation({
+    mutationFn: async (sectorName: string) => {
+      return await leadsService.addCustomSector(sectorName);
+    },
+    onSuccess: async (data) => {
+      toast({
+        title: "Custom Sector Added",
+        description: `"${data.sector}" has been added successfully.`,
+      });
+      setCustomSectorInput("");
+      setIsCustomSectorDialogOpen(false);
+      // Refetch sectors to include the new one
+      await refetchSectors();
+      // Set the newly added sector as selected
+      form.setValue("sector", data.sector as any);
+      form.setValue("customSector", "");
+    },
+    onError: (error: any) => {
+      let errorMessage = "Failed to add custom sector. Please try again.";
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Helper functions to format enum labels
   const formatLeadStatusLabel = (status: LeadStatus): string => {
@@ -69,6 +114,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
     return category === CustomerCategory.EXISTING ? "Existing Customer" : "Potential Customer";
   };
 
+
   const form = useForm<InsertLead>({
     resolver: zodResolver(insertLeadSchema),
     defaultValues: {
@@ -96,8 +142,94 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       leadStatus: (lead?.leadStatus as LeadStatus) || LeadStatus.NEW,
       leadCreatedBy: lead?.leadCreatedBy || "",
       additionalNotes: lead?.additionalNotes || "",
+      sector: (lead?.sector as string) || "",
+      customSector: lead?.customSector || "",
     },
   });
+
+  // Reset form values when lead prop changes
+  useEffect(() => {
+    if (lead) {
+      form.reset({
+        name: lead.name || "",
+        phoneNumber: lead.phoneNumber || "",
+        email: lead.email || "",
+        dateOfBirth: lead.dateOfBirth || "",
+        city: lead.city || "",
+        state: lead.state || "",
+        country: lead.country || "",
+        pincode: lead.pincode || "",
+        companyName: lead.companyName || "",
+        designation: lead.designation || "",
+        customerCategory: (lead.customerCategory as CustomerCategory) || CustomerCategory.POTENTIAL,
+        lastContactedDate: lead.lastContactedDate || "",
+        lastContactedBy: lead.lastContactedBy || "",
+        nextFollowupDate: lead.nextFollowupDate || "",
+        customerInterestedIn: lead.customerInterestedIn || "",
+        preferredCommunicationChannel: (lead.preferredCommunicationChannel as "email" | "phone" | "whatsapp" | "sms" | "in-person" | "linkedin" | "other") || undefined,
+        customCommunicationChannel: lead.customCommunicationChannel || "",
+        leadSource: (lead.leadSource as LeadSource) || undefined,
+        customLeadSource: lead.customLeadSource || "",
+        customReferralSource: lead.customReferralSource || "",
+        customGeneratedBy: lead.customGeneratedBy || "",
+        leadStatus: (lead.leadStatus as LeadStatus) || LeadStatus.NEW,
+        leadCreatedBy: lead.leadCreatedBy || "",
+        additionalNotes: lead.additionalNotes || "",
+        sector: (lead.sector as string) || "",
+        customSector: lead.customSector || "",
+      });
+      // Update character counts
+      setLastContactedByCount(lead.lastContactedBy?.length || 0);
+      setInterestedInCount(lead.customerInterestedIn?.length || 0);
+      setNotesCount(lead.additionalNotes?.length || 0);
+      setCustomSourceCount(lead.customLeadSource?.length || 0);
+      setCustomReferralCount(lead.customReferralSource?.length || 0);
+      setCustomGeneratedByCount(lead.customGeneratedBy?.length || 0);
+      setCustomCommChannelCount(lead.customCommunicationChannel?.length || 0);
+      setLeadCreatedByCount(lead.leadCreatedBy?.length || 0);
+      setCustomSectorCount(lead.customSector?.length || 0);
+    } else {
+      // Reset to empty values for new lead
+      form.reset({
+        name: "",
+        phoneNumber: "",
+        email: "",
+        dateOfBirth: "",
+        city: "",
+        state: "",
+        country: "",
+        pincode: "",
+        companyName: "",
+        designation: "",
+        customerCategory: CustomerCategory.POTENTIAL,
+        lastContactedDate: "",
+        lastContactedBy: "",
+        nextFollowupDate: "",
+        customerInterestedIn: "",
+        preferredCommunicationChannel: undefined,
+        customCommunicationChannel: "",
+        leadSource: undefined,
+        customLeadSource: "",
+        customReferralSource: "",
+        customGeneratedBy: "",
+        leadStatus: LeadStatus.NEW,
+        leadCreatedBy: "",
+        additionalNotes: "",
+        sector: "",
+        customSector: "",
+      });
+      // Reset character counts
+      setLastContactedByCount(0);
+      setInterestedInCount(0);
+      setNotesCount(0);
+      setCustomSourceCount(0);
+      setCustomReferralCount(0);
+      setCustomGeneratedByCount(0);
+      setCustomCommChannelCount(0);
+      setLeadCreatedByCount(0);
+      setCustomSectorCount(0);
+    }
+  }, [lead, form]);
 
   // Convert InsertLead to CreateLeadDto
   const convertToCreateDto = (data: InsertLead): CreateLeadDto => {
@@ -126,6 +258,8 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       leadStatus: (data.leadStatus as LeadStatus) || LeadStatus.NEW,
       leadCreatedBy: data.leadCreatedBy || undefined,
       additionalNotes: data.additionalNotes || undefined,
+      sector: data.sector as Sector | string || undefined,
+      customSector: data.customSector || undefined,
     };
   };
 
@@ -156,6 +290,8 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       leadStatus: (data.leadStatus as LeadStatus) || LeadStatus.NEW,
       leadCreatedBy: data.leadCreatedBy || undefined,
       additionalNotes: data.additionalNotes || undefined,
+      sector: data.sector as Sector | string || undefined,
+      customSector: data.customSector || undefined,
     };
   };
 
@@ -635,6 +771,52 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                   )}
                 />
 
+                {/* Sector Field */}
+                <FormField
+                  control={form.control}
+                  name="sector"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">
+                        Sector <span className="text-red-500">*</span>
+                      </FormLabel>
+                      <Select 
+                        onValueChange={(value) => {
+                          if (value.toLowerCase() === Sector.OTHER || value.toLowerCase() === "other") {
+                            // Save current value before opening dialog
+                            setPreviousSectorValue(field.value || "");
+                            setIsCustomSectorDialogOpen(true);
+                            // Don't set the value - wait for user to add or cancel
+                            // The value will remain as previous value until user adds or cancels
+                          } else {
+                            field.onChange(value);
+                            form.setValue("customSector", "");
+                            setPreviousSectorValue(value); // Update previous value for next time
+                          }
+                        }} 
+                        value={field.value || ""}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-sector">
+                            <SelectValue placeholder="Select sector" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {sectors
+                            .filter((sector) => sector.toLowerCase() !== "other" && sector.toLowerCase() !== Sector.OTHER)
+                            .map((sector) => (
+                              <SelectItem key={sector} value={sector}>
+                                {sector}
+                              </SelectItem>
+                            ))}
+                          <SelectItem value={Sector.OTHER}>Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 {/* Priority 16: Last Contacted Date */}
                 <FormField
                   control={form.control}
@@ -896,7 +1078,78 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                     )}
                   />
                 )}
+
               </div>
+
+              {/* Custom Sector Dialog */}
+              <Dialog 
+                open={isCustomSectorDialogOpen} 
+                onOpenChange={(open) => {
+                  setIsCustomSectorDialogOpen(open);
+                  if (!open) {
+                    // Dialog is closing - reset to previous value
+                    form.setValue("sector", previousSectorValue as any);
+                    setCustomSectorInput("");
+                  }
+                }}
+              >
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Custom Sector</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="custom-sector-input">Sector Name</Label>
+                      <Input
+                        id="custom-sector-input"
+                        placeholder="Enter sector name (max 255 characters)"
+                        maxLength={255}
+                        value={customSectorInput}
+                        onChange={(e) => setCustomSectorInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && customSectorInput.trim()) {
+                            addCustomSectorMutation.mutate(customSectorInput.trim());
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-gray-500">
+                        {customSectorInput.length}/255 characters
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsCustomSectorDialogOpen(false);
+                        form.setValue("sector", previousSectorValue as any);
+                        setCustomSectorInput("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (customSectorInput.trim()) {
+                          addCustomSectorMutation.mutate(customSectorInput.trim());
+                        }
+                      }}
+                      disabled={!customSectorInput.trim() || addCustomSectorMutation.isPending}
+                    >
+                      {addCustomSectorMutation.isPending ? (
+                        <div className="flex items-center">
+                          <ButtonLoader size={14} color="#ffffff" />
+                          <span className="ml-2">Adding...</span>
+                        </div>
+                      ) : (
+                        "Add"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </>
           ) : (
             <>
@@ -1060,6 +1313,51 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                                 {formatLeadSourceLabel(source)}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="sector"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">
+                          Sector <span className="text-red-500">*</span>
+                        </FormLabel>
+                        <Select 
+                          onValueChange={(value) => {
+                            if (value.toLowerCase() === Sector.OTHER || value.toLowerCase() === "other") {
+                              // Save current value before opening dialog
+                              setPreviousSectorValue(field.value || "");
+                              setIsCustomSectorDialogOpen(true);
+                              // Don't set the value - wait for user to add or cancel
+                              // The value will remain as previous value until user adds or cancels
+                            } else {
+                              field.onChange(value);
+                              form.setValue("customSector", "");
+                              setPreviousSectorValue(value); // Update previous value for next time
+                            }
+                          }} 
+                          value={field.value || ""}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-sector">
+                              <SelectValue placeholder="Select sector" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {sectors
+                              .filter((sector) => sector.toLowerCase() !== "other" && sector.toLowerCase() !== Sector.OTHER)
+                              .map((sector) => (
+                                <SelectItem key={sector} value={sector}>
+                                  {sector}
+                                </SelectItem>
+                              ))}
+                            <SelectItem value={Sector.OTHER}>Other</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -1346,6 +1644,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                     />
                   )}
 
+
                   <FormField
                     control={form.control}
                     name="additionalNotes"
@@ -1508,6 +1807,76 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                   />
                 </div>
               </div>
+
+              {/* Custom Sector Dialog */}
+              <Dialog 
+                open={isCustomSectorDialogOpen} 
+                onOpenChange={(open) => {
+                  setIsCustomSectorDialogOpen(open);
+                  if (!open) {
+                    // Dialog is closing - reset to previous value
+                    form.setValue("sector", previousSectorValue as any);
+                    setCustomSectorInput("");
+                  }
+                }}
+              >
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Custom Sector</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="custom-sector-input">Sector Name</Label>
+                      <Input
+                        id="custom-sector-input"
+                        placeholder="Enter sector name (max 255 characters)"
+                        maxLength={255}
+                        value={customSectorInput}
+                        onChange={(e) => setCustomSectorInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && customSectorInput.trim()) {
+                            addCustomSectorMutation.mutate(customSectorInput.trim());
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-gray-500">
+                        {customSectorInput.length}/255 characters
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsCustomSectorDialogOpen(false);
+                        form.setValue("sector", previousSectorValue as any);
+                        setCustomSectorInput("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (customSectorInput.trim()) {
+                          addCustomSectorMutation.mutate(customSectorInput.trim());
+                        }
+                      }}
+                      disabled={!customSectorInput.trim() || addCustomSectorMutation.isPending}
+                    >
+                      {addCustomSectorMutation.isPending ? (
+                        <div className="flex items-center">
+                          <ButtonLoader size={14} color="#ffffff" />
+                          <span className="ml-2">Adding...</span>
+                        </div>
+                      ) : (
+                        "Add"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </form>

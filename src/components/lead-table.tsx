@@ -14,7 +14,7 @@ import ExportDialog from "./export-dialog";
 import ImportDialog from "./import-dialog";
 import { InlineLoader } from "./ui/loader";
 import { useToast } from "@/hooks/use-toast";
-import { leadsService } from "@/lib/apis";
+import { leadsService, profileService } from "@/lib/apis";
 import type { LeadResponse, GetLeadsQuery } from "@/lib/apis";
 import { queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -26,8 +26,9 @@ interface LeadTableProps {
     status: string | string[];
     category: string;
     city: string;
+    sector: string;
   };
-  onFiltersChange?: (filters: { search: string; status: string | string[]; category: string; city: string; }) => void;
+  onFiltersChange?: (filters: { search: string; status: string | string[]; category: string; city: string; sector: string; }) => void;
   onEditLead: (lead: LeadResponse) => void;
   userPreferences?: {
     defaultView: string;
@@ -37,6 +38,7 @@ interface LeadTableProps {
     exportFormat: string;
     exportNotes: boolean;
   };
+  onPreferencesUpdate?: () => void;
   onAddNewLead?: () => void;
   exportFilters?: {
     search: string;
@@ -46,7 +48,7 @@ interface LeadTableProps {
   };
 }
 
-export default function LeadTable({ filters, onFiltersChange, onEditLead, userPreferences, onAddNewLead, exportFilters }: LeadTableProps) {
+export default function LeadTable({ filters, onFiltersChange, onEditLead, userPreferences, onPreferencesUpdate, onAddNewLead, exportFilters }: LeadTableProps) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -102,10 +104,39 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
     setLocation('/login');
   };
 
-  // Handler for page size change
-  const handlePageSizeChange = (newSize: string) => {
-    setItemsPerPage(parseInt(newSize));
+  // Handler for page size change - save to API
+  const handlePageSizeChange = async (newSize: string) => {
+    const newSizeInt = parseInt(newSize);
+    setItemsPerPage(newSizeInt);
     setCurrentPage(1); // Reset to first page when changing page size
+    
+    // Save preference to API
+    try {
+      await profileService.updateUserPreferences({
+        itemsPerPage: newSize as '10' | '20' | '50' | '100',
+      });
+      
+      // Refresh preferences if callback is provided
+      if (onPreferencesUpdate) {
+        onPreferencesUpdate();
+      }
+    } catch (error: any) {
+      console.error("Error saving page size preference:", error);
+      
+      // Check if it's an authentication error
+      const isAuthError = error?.response?.status === 401 || error?.response?.status === 403;
+      if (isAuthError) {
+        handleAutoLogout();
+        return;
+      }
+      
+      // Show error toast but don't revert the change
+      toast({
+        title: "Warning",
+        description: "Page size changed but failed to save preference. The change will only apply to this session.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Handler for sorting
@@ -220,6 +251,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
         status: filters.status && filters.status.length > 0 ? filters.status : undefined,
         category: filters.category || undefined,
         city: filters.city || undefined,
+        sector: filters.sector || undefined,
         page: currentPage,
         limit: itemsPerPage,
         followupDateFilter: followupDateFilter,
@@ -890,7 +922,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
                           <div>
                             <div className="font-semibold text-gray-900 text-sm md:text-base">{lead.name}</div>
                             <div className="text-xs md:text-sm text-gray-500">
-                              {lead.customerCategory === 'existing' ? 'Existing Customer' : 'Potential Customer'}
+                              {lead.designation || 'N/A'}
                             </div>
                           </div>
                         </TableCell>
@@ -903,7 +935,9 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
                         <TableCell>
                           <div>
                             <div className="font-medium text-gray-900 text-xs md:text-sm">{lead.companyName || 'N/A'}</div>
-                            <div className="text-xs text-gray-500">{lead.designation || 'N/A'}</div>
+                            <div className="text-xs text-gray-500">
+                              {lead.customerCategory === 'existing' ? 'Existing Customer' : 'Potential Customer'}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1075,7 +1109,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="30">30</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
                     <SelectItem value="50">50</SelectItem>
                     <SelectItem value="100">100</SelectItem>
                   </SelectContent>

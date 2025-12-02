@@ -56,6 +56,8 @@ export const leads = pgTable("leads", {
   leadStatus: text("lead_status").notNull(), // "new" | "followup" | "qualified" | "hot" | "converted" | "lost"
   leadCreatedBy: text("lead_created_by"), // New field for who created the lead
   additionalNotes: text("additional_notes"),
+  sector: text("sector"), // "technology" | "healthcare" | "finance" | "education" | "retail" | "manufacturing" | "real_estate" | "consulting" | "hospitality" | "transportation" | "energy" | "media" | "other"
+  customSector: text("custom_sector"), // Used when sector is "other"
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -199,6 +201,11 @@ export const insertLeadSchema = createInsertSchema(leads, {
     .or(z.literal("")),
   additionalNotes: z.string()
     .max(200, "Maximum 200 characters allowed")
+    .optional()
+    .or(z.literal("")),
+  sector: z.string().min(1, "Sector is required"),
+  customSector: z.string()
+    .max(255, "Maximum 255 characters allowed")
     .optional()
     .or(z.literal("")),
 }).omit({ id: true, createdAt: true });

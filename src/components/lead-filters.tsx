@@ -15,6 +15,7 @@ interface LeadFiltersProps {
     status: string | string[];
     category: string;
     city: string;
+    sector: string;
   };
   onFiltersChange: (filters: any) => void;
 }
@@ -76,6 +77,47 @@ export default function LeadFilters({ filters, onFiltersChange }: LeadFiltersPro
     };
 
     fetchCities();
+  }, []);
+
+  // Fetch sectors from API
+  const [sectors, setSectors] = React.useState<string[]>([]);
+  const [isLoadingSectors, setIsLoadingSectors] = React.useState(false);
+  
+  React.useEffect(() => {
+    const fetchSectors = async () => {
+      setIsLoadingSectors(true);
+      try {
+        const sectorsData = await leadsService.getSectors();
+        console.log('[LeadFilters] Sectors API response:', sectorsData);
+        
+        // Handle different response formats: array, or wrapped in object
+        let sectorsArray: string[] = [];
+        
+        if (Array.isArray(sectorsData)) {
+          sectorsArray = sectorsData;
+        } else if (sectorsData && typeof sectorsData === 'object') {
+          // Try common response wrapper formats
+          sectorsArray = (sectorsData as any).sectors || (sectorsData as any).data || [];
+        }
+        
+        // Ensure we have an array and filter out any null/undefined values
+        const validSectors = sectorsArray
+          .filter((sector): sector is string => 
+            typeof sector === 'string' && sector.trim().length > 0
+          )
+          .sort();
+        
+        console.log('[LeadFilters] Processed sectors:', validSectors);
+        setSectors(validSectors);
+      } catch (error) {
+        console.error("Error loading sectors:", error);
+        setSectors([]);
+      } finally {
+        setIsLoadingSectors(false);
+      }
+    };
+
+    fetchSectors();
   }, []);
 
   // Only update search value when filters change externally (not from our debounced updates)
@@ -310,6 +352,24 @@ export default function LeadFilters({ filters, onFiltersChange }: LeadFiltersPro
                 cities.map((city) => (
                   <SelectItem key={city} value={city}>
                     {city}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.sector || "all"} onValueChange={(value) => updateFilter("sector", value)} disabled={isLoadingSectors}>
+            <SelectTrigger className="h-10 text-xs sm:text-sm w-full sm:w-auto sm:min-w-[140px]" data-testid="select-sector">
+              <SelectValue placeholder={isLoadingSectors ? "Loading sectors..." : "All Sectors"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sectors</SelectItem>
+              {sectors.length === 0 && !isLoadingSectors ? (
+                <SelectItem value="no-sectors" disabled>No sectors available</SelectItem>
+              ) : (
+                sectors.map((sector) => (
+                  <SelectItem key={sector} value={sector}>
+                    {sector}
                   </SelectItem>
                 ))
               )}
