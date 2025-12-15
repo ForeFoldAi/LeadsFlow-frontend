@@ -459,10 +459,17 @@ export default function Settings() {
           );
         }
       } else if (unsubscribePush || !settings.browserPush) {
-        // Unsubscribe from push notifications
+        // Unsubscribe from push notifications (current device only)
         try {
-        await notificationsService.unsubscribe();
-          await unsubscribeFromPushNotifications();
+          // Get current subscription endpoint to unsubscribe this specific device
+          const currentSubscription = await getCurrentSubscription();
+          const endpoint = currentSubscription?.endpoint;
+          
+          // Unsubscribe from backend (specific device if endpoint available, otherwise all)
+          await notificationsService.unsubscribe(endpoint);
+          
+          // Also unsubscribe from browser
+          await unsubscribeFromPushNotifications(endpoint);
           localStorage.removeItem('pushSubscription');
         } catch (unsubscribeError: any) {
           console.error('[Settings] Failed to unsubscribe:', unsubscribeError);
@@ -490,6 +497,9 @@ export default function Settings() {
         try {
           const status = await notificationsService.getStatus();
           console.log('[Settings] Subscription status after save:', status);
+          if (status.subscriptionCount !== undefined) {
+            console.log(`[Settings] You have ${status.subscriptionCount} device(s) subscribed`);
+          }
           if (!status.subscribed) {
             console.warn('[Settings] Warning: Subscription may not have been saved properly');
           }

@@ -7,6 +7,7 @@ export interface SubscribeNotificationRequest {
     p256dh: string;
     auth: string;
   };
+  deviceInfo?: string; // Optional device type: 'mobile' or 'desktop'
 }
 
 export interface SubscribeNotificationResponse {
@@ -27,6 +28,7 @@ export interface TestNotificationResponse {
 export interface NotificationStatusResponse {
   subscribed: boolean;
   subscription?: PushSubscription;
+  subscriptionCount?: number; // Number of devices subscribed
 }
 
 export const notificationsService = {
@@ -56,10 +58,12 @@ export const notificationsService = {
   /**
    * Unsubscribe from push notifications
    * DELETE /notifications/unsubscribe
+   * @param endpoint - Optional endpoint to unsubscribe specific device. If not provided, unsubscribes all devices.
    */
-  unsubscribe: async (): Promise<UnsubscribeNotificationResponse> => {
+  unsubscribe: async (endpoint?: string): Promise<UnsubscribeNotificationResponse> => {
     const response = await axiosInstance.delete<UnsubscribeNotificationResponse>(
-      '/notifications/unsubscribe'
+      '/notifications/unsubscribe',
+      endpoint ? { data: { endpoint } } : undefined
     );
     return response.data;
   },

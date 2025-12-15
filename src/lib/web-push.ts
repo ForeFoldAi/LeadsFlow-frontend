@@ -6,6 +6,7 @@ export interface PushSubscription {
     p256dh: string;
     auth: string;
   };
+  deviceInfo?: string; // Optional device type: 'mobile' or 'desktop'
 }
 
 export interface NotificationStatus {
@@ -125,6 +126,9 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
     applicationServerKey: applicationServerKey as BufferSource,
   });
 
+  // Detect device type
+  const deviceInfo = getDeviceType();
+
   // Convert subscription to our format
   const pushSubscription: PushSubscription = {
     endpoint: subscription.endpoint,
@@ -132,6 +136,7 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
       p256dh: arrayBufferToBase64(subscription.getKey('p256dh')!),
       auth: arrayBufferToBase64(subscription.getKey('auth')!),
     },
+    deviceInfo: deviceInfo,
   };
 
   return pushSubscription;
@@ -139,8 +144,9 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
 
 /**
  * Unsubscribe from push notifications
+ * @param endpoint - Optional endpoint to unsubscribe. If not provided, unsubscribes current device.
  */
-export async function unsubscribeFromPushNotifications(): Promise<boolean> {
+export async function unsubscribeFromPushNotifications(endpoint?: string): Promise<boolean> {
   if (!isServiceWorkerSupported()) {
     return false;
   }
@@ -150,6 +156,13 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
     const subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
+      // If endpoint is provided and doesn't match current subscription, 
+      // we can't unsubscribe it from this device (it's on another device)
+      if (endpoint && subscription.endpoint !== endpoint) {
+        console.log('[WebPush] Endpoint mismatch - cannot unsubscribe different device from this browser');
+        return false;
+      }
+      
       await subscription.unsubscribe();
       console.log('[WebPush] Unsubscribed from push notifications');
       return true;
@@ -239,5 +252,19 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     binary += String.fromCharCode(bytes[i]);
   }
   return window.btoa(binary);
+}
+
+/**
+ * Detect device type based on user agent
+ */
+export function getDeviceType(): 'mobile' | 'desktop' {
+  if (typeof navigator === 'undefined') {
+    return 'desktop';
+  }
+  const ua = navigator.userAgent;
+  if (/Mobile|Android|iPhone|iPad/i.test(ua)) {
+    return 'mobile';
+  }
+  return 'desktop';
 }
 
