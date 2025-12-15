@@ -279,19 +279,36 @@ export default function AppHeader() {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
+                  if (notificationPermission === "denied") {
+                    toast({
+                      title: "Notifications Blocked",
+                      description: "Please enable notifications in your browser settings to receive alerts.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
                   if (notificationPermission !== "granted") {
                     toggleNotifications();
                   } else {
                     handleToggleClick();
                   }
                 }}
-                className={`relative h-10 w-10 rounded-full border border-slate-700 bg-slate-800/40 hover:bg-slate-700/60 transition-colors ${isBrowserPushActive ? "text-yellow-300" : "text-slate-400"}`}
+                disabled={notificationPermission === "denied"}
+                className={`relative h-10 w-10 rounded-full border border-slate-700 bg-slate-800/40 transition-colors ${
+                  notificationPermission === "denied" 
+                    ? "opacity-50 cursor-not-allowed text-slate-500" 
+                    : isBrowserPushActive 
+                      ? "text-yellow-300 hover:bg-slate-700/60" 
+                      : "text-slate-400 hover:bg-slate-700/60"
+                }`}
                 aria-label={
-                  notificationPermission === "granted"
-                    ? isBrowserPushActive
-                      ? "Mute notifications"
-                      : "Enable notifications"
-                    : "Request notification permission"
+                  notificationPermission === "denied"
+                    ? "Notifications blocked - enable in browser settings"
+                    : notificationPermission === "granted"
+                      ? isBrowserPushActive
+                        ? "Mute notifications"
+                        : "Enable notifications"
+                      : "Request notification permission"
                 }
                 data-testid="button-toggle-notifications"
               >

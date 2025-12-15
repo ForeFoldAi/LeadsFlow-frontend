@@ -228,6 +228,44 @@ export default function Settings() {
       setIsLoadingSettings(true);
       try {
         const preferences = await profileService.getProfilePreferences();
+        
+        // Check for existing subscription if browserPush is enabled
+        let currentSubscription: PushSubscription | null = null;
+        
+        // Try to parse pushSubscription from backend (it might be a string)
+        if (preferences.notifications.pushSubscription) {
+          try {
+            if (typeof preferences.notifications.pushSubscription === 'string') {
+              currentSubscription = JSON.parse(preferences.notifications.pushSubscription);
+            } else {
+              currentSubscription = preferences.notifications.pushSubscription as PushSubscription;
+            }
+          } catch (e) {
+            console.warn('[Settings] Failed to parse pushSubscription from backend:', e);
+          }
+        }
+        
+        if (preferences.notifications.browserPush && isBrowserPushSupported) {
+          // Try to get subscription from service worker (most reliable)
+          const swSubscription = await getCurrentSubscription();
+          if (swSubscription) {
+            currentSubscription = swSubscription;
+          } else {
+            // Also check localStorage as backup
+            const localSub = localStorage.getItem('pushSubscription');
+            if (localSub) {
+              try {
+                currentSubscription = JSON.parse(localSub);
+              } catch (e) {
+                console.warn('[Settings] Failed to parse localStorage subscription:', e);
+              }
+            } else {
+              // Browser push is enabled but no subscription found - this is the issue
+              console.warn('[Settings] Browser push is enabled but no subscription found in service worker or localStorage');
+            }
+          }
+        }
+        
         setNotificationSettings({
           newLeads: preferences.notifications.newLeads,
           followUps: preferences.notifications.followUps,
@@ -236,7 +274,7 @@ export default function Settings() {
           browserPush: preferences.notifications.browserPush,
           dailySummary: preferences.notifications.dailySummary,
           emailNotifications: preferences.notifications.emailNotifications,
-          pushSubscription: preferences.notifications.pushSubscription,
+          pushSubscription: currentSubscription,
         });
         setSecuritySettings({
           twoFactorEnabled: preferences.security.twoFactorEnabled,
@@ -496,7 +534,7 @@ export default function Settings() {
   const handleTestNotification = async () => {
     setIsTestingNotification(true);
     try {
-      // First check if user has a subscription
+      // First check if user has browser push enabled
       if (!notificationSettings.browserPush) {
         toast({
           title: "Notifications Disabled",
@@ -507,10 +545,25 @@ export default function Settings() {
         return;
       }
 
-      // Check if subscription exists locally
-      const localSubscription = await getCurrentSubscription();
+      // Check if subscription exists locally (service worker)
+      let localSubscription = await getCurrentSubscription();
       console.log('[Settings] Local subscription:', localSubscription ? 'Found' : 'Not found');
       
+      // If no subscription in service worker, check localStorage
+      if (!localSubscription) {
+        const storedSub = localStorage.getItem('pushSubscription');
+        if (storedSub) {
+          try {
+            localSubscription = JSON.parse(storedSub);
+            console.log('[Settings] Found subscription in localStorage');
+          } catch (e) {
+            console.warn('[Settings] Failed to parse localStorage subscription:', e);
+          }
+        }
+      }
+
+      // If no subscription found, show warning but don't disable browser push
+      // Let the API state control the toggle state
       if (!localSubscription) {
         toast({
           title: "No Subscription Found",
@@ -526,10 +579,23 @@ export default function Settings() {
       const response = await notificationsService.test();
       console.log('[Settings] Test notification response:', response);
       
-      toast({
-        title: "Test Notification Sent",
-        description: response.message || "A test notification has been sent to your device. Check your browser notifications!",
-      });
+      // If API call succeeded (no exception thrown), treat as success
+      // The API returns { sent: boolean, message: string }
+      // Don't automatically disable - respect API state
+      if (response && response.sent === false) {
+        // Test failed - show error but don't disable browser push
+        toast({
+          title: "Test Failed",
+          description: response.message || "Failed to send test notification. Please check your settings.",
+          variant: "destructive",
+        });
+      } else {
+        // Success - API call succeeded, notification should be sent
+        toast({
+          title: "Test Notification Sent",
+          description: response?.message || "A test notification has been sent to your device. Check your browser notifications!",
+        });
+      }
     } catch (error: any) {
       console.error("[Settings] Error testing notification:", error);
       console.error("[Settings] Error details:", {
@@ -538,7 +604,8 @@ export default function Settings() {
         message: error?.message
       });
       
-      // Provide more specific error messages
+      // Show error but don't automatically disable browser push
+      // Let the API state control the toggle state
       let errorMessage = "Failed to send test notification. Please try again.";
       
       if (error?.response?.status === 404) {
@@ -1323,7 +1390,20 @@ export default function Settings() {
                     id="browser-push"
                     checked={notificationSettings.browserPush}
                     disabled={!notificationSettings.browserPush && !canEnableBrowserPush}
-                    onCheckedChange={(checked) => setNotificationSettings(prev => ({ ...prev, browserPush: checked }))}
+                    onCheckedChange={async (checked) => {
+                      setNotificationSettings(prev => ({ ...prev, browserPush: checked }));
+                      // If enabling, check if subscription exists
+                      if (checked && isBrowserPushSupported) {
+                        const existingSub = await getCurrentSubscription();
+                        if (!existingSub) {
+                          // Check localStorage as backup
+                          const storedSub = localStorage.getItem('pushSubscription');
+                          if (!storedSub) {
+                            console.log('[Settings] Browser push enabled but no subscription found - user needs to save');
+                          }
+                        }
+                      }
+                    }}
                     data-testid="switch-browser-push"
                   />
                 </div>
@@ -1335,14 +1415,14 @@ export default function Settings() {
                       variant="outline"
                       size="sm"
                       onClick={handleTestNotification}
-                        disabled={isTestingNotification || !notificationSettings.pushSubscription}
+                      disabled={isTestingNotification || !notificationSettings.browserPush || !notificationSettings.pushSubscription}
                       className="text-xs sm:text-sm"
-                        title={!notificationSettings.pushSubscription ? "Please save your settings first to create a subscription" : ""}
+                      title={!notificationSettings.browserPush ? "Please enable browser notifications first" : !notificationSettings.pushSubscription ? "Please save your settings first to create a subscription" : "Test your push notification"}
                     >
                       {isTestingNotification ? (
                         <>
-                          <ButtonLoader className="mr-2" />
-                          Sending...
+                          <ButtonLoader size={14} color="#ffffff" />
+                          <span className="ml-2">Sending...</span>
                         </>
                       ) : (
                         <>
@@ -1352,9 +1432,9 @@ export default function Settings() {
                       )}
                     </Button>
                     </div>
-                    {!notificationSettings.pushSubscription && (
-                      <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-md">
-                        💡 Save your settings first to create a push subscription, then you can test notifications.
+                    {notificationSettings.browserPush && (
+                      <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded-md">
+                        💡 Click "Test Notification" to verify your push notifications are working.
                       </p>
                     )}
                   </div>
