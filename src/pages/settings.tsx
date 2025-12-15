@@ -757,7 +757,9 @@ export default function Settings() {
       };
 
       // Update via API
+      console.log('[Settings] Saving preferences:', preferencesDto);
       const updated = await profileService.updateUserPreferences(preferencesDto);
+      console.log('[Settings] Preferences saved, response:', updated);
       
       // Update local state
       setPreferenceSettings({

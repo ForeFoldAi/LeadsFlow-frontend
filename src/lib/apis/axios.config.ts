@@ -22,6 +22,10 @@ axiosInstance.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Debug logging for leads endpoint to check limit parameter
+    if (config.url?.includes('/leads') && config.params) {
+      console.log('[Axios] Leads request params:', config.params, 'limit:', config.params.limit, 'limit type:', typeof config.params.limit);
+    }
     return config;
   },
   (error: AxiosError) => {

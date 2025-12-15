@@ -66,7 +66,15 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
   // Update items per page when user preferences change
   React.useEffect(() => {
     if (userPreferences?.itemsPerPage) {
-      setItemsPerPage(parseInt(userPreferences.itemsPerPage));
+      const parsed = parseInt(userPreferences.itemsPerPage);
+      console.log('[LeadTable] Updating itemsPerPage:', { 
+        raw: userPreferences.itemsPerPage, 
+        parsed, 
+        type: typeof userPreferences.itemsPerPage 
+      });
+      if (!isNaN(parsed)) {
+        setItemsPerPage(parsed);
+      }
     }
   }, [userPreferences?.itemsPerPage]);
   
@@ -257,6 +265,7 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
         followupDateFilter: followupDateFilter,
       };
 
+      console.log('[LeadTable] Fetching leads with query:', { ...query, limit: itemsPerPage, itemsPerPageState: itemsPerPage });
       const response = await leadsService.getAllLeads(query);
       setLeads(response.data);
       setTotalLeads(response.meta.total);

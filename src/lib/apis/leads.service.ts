@@ -17,6 +17,8 @@ export const leadsService = {
     // Format query parameters - handle status array properly
     const params: any = { ...query };
     
+    console.log('[leadsService] getAllLeads called with query:', query, 'params:', params);
+    
     // Ensure status is properly formatted for the API
     if (params.status) {
       if (Array.isArray(params.status) && params.status.length > 0) {
@@ -37,6 +39,8 @@ export const leadsService = {
         delete params.status;
       }
     }
+    
+    console.log('[leadsService] Sending request with params:', params, 'limit value:', params.limit, 'limit type:', typeof params.limit);
     
     const response = await axiosInstance.get<PaginatedLeadsResponse>('/leads', {
       params: params,

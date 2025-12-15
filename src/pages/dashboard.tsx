@@ -92,6 +92,7 @@ export default function Dashboard() {
     const loadPreferences = async () => {
       try {
         const preferences = await profileService.getProfilePreferences();
+        console.log('[Dashboard] Loaded preferences:', preferences.preferences);
         setUserPreferences({
           defaultView: preferences.preferences.defaultView,
           itemsPerPage: preferences.preferences.itemsPerPage,
