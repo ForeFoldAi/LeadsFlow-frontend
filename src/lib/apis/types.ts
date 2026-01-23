@@ -742,6 +742,7 @@ export interface SubUserPermissions {
   canViewLeads: boolean;
   canEditLeads: boolean;
   canAddLeads: boolean;
+  canExportLeads?: boolean;
 }
 
 export interface SubUser {
@@ -780,6 +781,7 @@ export interface CreateSubUserDto {
   canViewLeads?: boolean;
   canEditLeads?: boolean;
   canAddLeads?: boolean;
+  canExportLeads?: boolean;
 }
 
 export interface CreateSubUserRequest {
@@ -793,18 +795,21 @@ export interface CreateSubUserRequest {
   canViewLeads?: boolean;
   canEditLeads?: boolean;
   canAddLeads?: boolean;
+  canExportLeads?: boolean;
 }
 
 export interface UpdateSubUserPermissionsDto {
   canViewLeads?: boolean;
   canEditLeads?: boolean;
   canAddLeads?: boolean;
+  canExportLeads?: boolean;
 }
 
 export interface UpdateSubUserPermissionsRequest {
   canViewLeads?: boolean;
   canEditLeads?: boolean;
   canAddLeads?: boolean;
+  canExportLeads?: boolean;
 }
 
 // ============================================================================

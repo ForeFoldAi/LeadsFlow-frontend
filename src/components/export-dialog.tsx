@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Upload, FileText, Filter } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { leadsService } from "@/lib/apis";
+import { leadsService, UserRole } from "@/lib/apis";
 import type { GetLeadsQuery } from "@/lib/apis";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,7 +35,38 @@ export default function ExportDialog({ currentFilters }: ExportDialogProps) {
     }
   });
 
+  const checkExportPermission = (): boolean => {
+    try {
+      const userStr = localStorage.getItem("user");
+      if (!userStr) return false;
+      
+      const user = JSON.parse(userStr);
+      
+      // Management role users can always export
+      if (user.role === UserRole.MANAGEMENT) {
+        return true;
+      }
+      
+      // Check if user has export permission
+      return user.permissions?.canExportLeads === true;
+    } catch (error) {
+      console.error("Error checking export permission:", error);
+      return false;
+    }
+  };
+
   const handleExport = async () => {
+    // Check permission before exporting
+    if (!checkExportPermission()) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to export data. Please contact management.",
+        variant: "destructive",
+      });
+      setIsOpen(false);
+      return;
+    }
+
     setIsExporting(true);
     try {
       const query: GetLeadsQuery = {};

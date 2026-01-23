@@ -88,22 +88,55 @@ export const profileService = {
    * Update sub-user permissions (only for Management role)
    */
   updateSubUserPermissions: async (
-    subUserId: number,
+    subUserId: number | string,
     data: UpdateSubUserPermissionsDto
   ): Promise<SubUserResponse> => {
-    const response = await axiosInstance.patch<SubUserResponse>(
-      `/profile/sub-users/${subUserId}/permissions`,
-      data
-    );
-    return response.data;
+    // Ensure subUserId is provided
+    if (subUserId === null || subUserId === undefined) {
+      throw new Error('Sub-user ID is required');
+    }
+    
+    // Convert to string (handles both numbers and UUIDs)
+    const userIdString = String(subUserId);
+    
+    if (!userIdString || userIdString.trim() === '') {
+      throw new Error(`Invalid sub-user ID: ${subUserId}`);
+    }
+    
+    // Use the string ID directly in the URL (backend handles both numeric strings and UUIDs)
+    const url = `/profile/sub-users/${userIdString}/permissions`;
+    console.log('[profileService] Updating permissions - URL:', url, 'User ID:', userIdString, 'Type:', typeof subUserId, 'Data:', data);
+    
+    try {
+      const response = await axiosInstance.patch<SubUserResponse>(url, data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[profileService] Error updating permissions:', error);
+      console.error('[profileService] Error response:', error?.response?.data);
+      console.error('[profileService] Error status:', error?.response?.status);
+      throw error;
+    }
   },
 
   /**
    * Delete a sub-user (only for Management role)
    */
-  deleteSubUser: async (subUserId: number): Promise<{ message: string }> => {
+  deleteSubUser: async (subUserId: number | string): Promise<{ message: string }> => {
+    // Ensure subUserId is provided
+    if (subUserId === null || subUserId === undefined) {
+      throw new Error('Sub-user ID is required');
+    }
+    
+    // Convert to string (handles both numbers and UUIDs)
+    const userIdString = String(subUserId);
+    
+    if (!userIdString || userIdString.trim() === '') {
+      throw new Error(`Invalid sub-user ID: ${subUserId}`);
+    }
+    
+    // Use the string ID directly in the URL (backend handles both numeric strings and UUIDs)
     const response = await axiosInstance.delete<{ message: string }>(
-      `/profile/sub-users/${subUserId}`
+      `/profile/sub-users/${userIdString}`
     );
     return response.data;
   },

@@ -1657,6 +1657,8 @@ function UserManagement() {
       setIsLoadingUsers(true);
       try {
         const subUsers = await profileService.getAllSubUsers();
+        console.log('[UserManagement] Loaded sub-users:', subUsers);
+        console.log('[UserManagement] Sub-user IDs:', subUsers.map(u => ({ id: u.id, type: typeof u.id, email: u.email })));
         setUsers(subUsers);
       } catch (error: any) {
         console.error("Error loading users:", error);
@@ -1693,6 +1695,7 @@ function UserManagement() {
     canViewLeads: z.boolean().default(true),
     canEditLeads: z.boolean().default(true),
     canAddLeads: z.boolean().default(true),
+    canExportLeads: z.boolean().default(false),
   }).refine((data) => {
     // If password is provided, it must be at least 6 characters
     if (data.password && data.password.length > 0) {
@@ -1737,6 +1740,7 @@ function UserManagement() {
       canViewLeads: true,
       canEditLeads: true,
       canAddLeads: true,
+      canExportLeads: false,
     },
   });
 
@@ -1756,6 +1760,7 @@ function UserManagement() {
         canViewLeads: data.canViewLeads,
         canEditLeads: data.canEditLeads,
         canAddLeads: data.canAddLeads,
+        canExportLeads: data.canExportLeads,
       };
 
       console.log("Sending createSubUser request with DTO:", createDto);
@@ -1789,6 +1794,16 @@ function UserManagement() {
   const handleEditUser = async (data: UserFormData) => {
     if (!editingUser) return;
 
+    // Validate that editingUser has a valid ID
+    if (!editingUser.id || (typeof editingUser.id !== 'number' && typeof editingUser.id !== 'string')) {
+      toast({
+        title: "Error",
+        description: "Invalid user ID. Cannot update permissions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmittingUser(true);
     try {
       // Update permissions
@@ -1796,8 +1811,10 @@ function UserManagement() {
         canViewLeads: data.canViewLeads,
         canEditLeads: data.canEditLeads,
         canAddLeads: data.canAddLeads,
+        canExportLeads: data.canExportLeads,
       };
 
+      console.log('Updating permissions for user ID:', editingUser.id, 'Permissions:', permissionsDto);
       await profileService.updateSubUserPermissions(editingUser.id, permissionsDto);
       
       // Reload users to get updated data
@@ -1811,7 +1828,10 @@ function UserManagement() {
       handleCloseDialog();
     } catch (error: any) {
       console.error("Error updating user:", error);
+      console.error("Error response data:", error?.response?.data);
+      console.error("Error response status:", error?.response?.status);
       const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error ||
                           error?.message || 
                           "Failed to update user";
       toast({
@@ -1857,6 +1877,8 @@ function UserManagement() {
   };
 
   const handleEditClick = (user: any) => {
+    console.log('[UserManagement] handleEditClick - User data:', user);
+    console.log('[UserManagement] User ID:', user.id, 'Type:', typeof user.id);
     setEditingUser(user);
     setShowAddForm(true);
     setShowPassword(false);
@@ -1872,6 +1894,7 @@ function UserManagement() {
       canViewLeads: user.permissions?.canViewLeads ?? true,
       canEditLeads: user.permissions?.canEditLeads ?? true,
       canAddLeads: user.permissions?.canAddLeads ?? true,
+      canExportLeads: user.permissions?.canExportLeads ?? false,
     });
   };
 
@@ -1891,6 +1914,7 @@ function UserManagement() {
       canViewLeads: true,
       canEditLeads: true,
       canAddLeads: true,
+      canExportLeads: false,
     });
   };
 
@@ -2209,7 +2233,7 @@ function UserManagement() {
 
             <div className="space-y-3 sm:space-y-4">
               <h4 className="font-medium text-sm sm:text-base">Lead Access Permissions</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
                   <div className="flex-1 min-w-0 pr-2">
                     <Label htmlFor="canViewLeads" className="text-xs sm:text-sm">View Leads</Label>
@@ -2234,7 +2258,7 @@ function UserManagement() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-2 sm:p-3 border rounded-lg sm:col-span-2 md:col-span-1">
+                <div className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
                   <div className="flex-1 min-w-0 pr-2">
                     <Label htmlFor="canAddLeads" className="text-xs sm:text-sm">Add Leads</Label>
                     <p className="text-xs text-gray-500 mt-0.5">Can create new leads</p>
@@ -2243,6 +2267,18 @@ function UserManagement() {
                     id="canAddLeads"
                     checked={form.watch("canAddLeads")}
                     onCheckedChange={(checked) => form.setValue("canAddLeads", checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <Label htmlFor="canExportLeads" className="text-xs sm:text-sm">Export Leads</Label>
+                    <p className="text-xs text-gray-500 mt-0.5">Can export lead data</p>
+                  </div>
+                  <Switch
+                    id="canExportLeads"
+                    checked={form.watch("canExportLeads")}
+                    onCheckedChange={(checked) => form.setValue("canExportLeads", checked)}
                   />
                 </div>
               </div>
@@ -2330,6 +2366,11 @@ function UserManagement() {
                                 {user.permissions?.canAddLeads && (
                                   <span className="px-1.5 sm:px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs">
                                     Add
+                                  </span>
+                                )}
+                                {user.permissions?.canExportLeads && (
+                                  <span className="px-1.5 sm:px-2 py-0.5 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded text-xs">
+                                    Export
                                   </span>
                                 )}
                               </div>
