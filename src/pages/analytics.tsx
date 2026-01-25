@@ -252,17 +252,28 @@ export default function Analytics({ onAddNewLead }: AnalyticsProps) {
   const checkExportPermission = (): boolean => {
     try {
       const userStr = localStorage.getItem("user");
-      if (!userStr) return false;
+      if (!userStr) {
+        console.log('[Analytics] No user data in localStorage');
+        return false;
+      }
       
       const user = JSON.parse(userStr);
+      console.log('[Analytics] Checking export permission for user:', {
+        role: user.role,
+        permissions: user.permissions,
+        canExportLeads: user.permissions?.canExportLeads
+      });
       
       // Management role users can always export
       if (user.role === UserRole.MANAGEMENT) {
+        console.log('[Analytics] User is Management - export allowed');
         return true;
       }
       
       // Check if user has export permission
-      return user.permissions?.canExportLeads === true;
+      const hasPermission = user.permissions?.canExportLeads === true;
+      console.log('[Analytics] Export permission check result:', hasPermission);
+      return hasPermission;
     } catch (error) {
       console.error("Error checking export permission:", error);
       return false;

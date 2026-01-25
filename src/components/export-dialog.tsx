@@ -38,17 +38,28 @@ export default function ExportDialog({ currentFilters }: ExportDialogProps) {
   const checkExportPermission = (): boolean => {
     try {
       const userStr = localStorage.getItem("user");
-      if (!userStr) return false;
+      if (!userStr) {
+        console.log('[ExportDialog] No user data in localStorage');
+        return false;
+      }
       
       const user = JSON.parse(userStr);
+      console.log('[ExportDialog] Checking export permission for user:', {
+        role: user.role,
+        permissions: user.permissions,
+        canExportLeads: user.permissions?.canExportLeads
+      });
       
       // Management role users can always export
       if (user.role === UserRole.MANAGEMENT) {
+        console.log('[ExportDialog] User is Management - export allowed');
         return true;
       }
       
       // Check if user has export permission
-      return user.permissions?.canExportLeads === true;
+      const hasPermission = user.permissions?.canExportLeads === true;
+      console.log('[ExportDialog] Export permission check result:', hasPermission);
+      return hasPermission;
     } catch (error) {
       console.error("Error checking export permission:", error);
       return false;
@@ -57,7 +68,26 @@ export default function ExportDialog({ currentFilters }: ExportDialogProps) {
 
   const handleExport = async () => {
     // Check permission before exporting
-    if (!checkExportPermission()) {
+    const hasPermission = checkExportPermission();
+    console.log('[ExportDialog] handleExport - Permission check result:', hasPermission);
+    
+    if (!hasPermission) {
+      // Double-check by reading directly from localStorage
+      try {
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          console.log('[ExportDialog] Current user data from localStorage:', user);
+          console.log('[ExportDialog] User permissions:', user.permissions);
+          console.log('[ExportDialog] canExportLeads value:', user.permissions?.canExportLeads);
+          console.log('[ExportDialog] canExportLeads type:', typeof user.permissions?.canExportLeads);
+          console.log('[ExportDialog] canExportLeads === true?', user.permissions?.canExportLeads === true);
+          console.log('[ExportDialog] canExportLeads == true?', user.permissions?.canExportLeads == true);
+        }
+      } catch (e) {
+        console.error('[ExportDialog] Error reading localStorage:', e);
+      }
+      
       toast({
         title: "Access Denied",
         description: "You don't have permission to export data. Please contact management.",

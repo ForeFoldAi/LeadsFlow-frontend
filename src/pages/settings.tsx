@@ -1820,6 +1820,22 @@ function UserManagement() {
       // Reload users to get updated data
       const updatedUsers = await profileService.getAllSubUsers();
       setUsers(updatedUsers);
+      
+      // If updating current user's permissions, refresh localStorage
+      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      if (currentUser.id === editingUser.id) {
+        const updatedUser = updatedUsers.find((u: any) => u.id === editingUser.id);
+        if (updatedUser) {
+          const updatedUserData = {
+            ...currentUser,
+            permissions: updatedUser.permissions,
+          };
+          localStorage.setItem("user", JSON.stringify(updatedUserData));
+          // Dispatch event to notify other components
+          window.dispatchEvent(new Event('userUpdated'));
+          console.log('[UserManagement] Updated current user permissions in localStorage');
+        }
+      }
 
       toast({
         title: "Success",

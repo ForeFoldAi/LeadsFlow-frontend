@@ -87,7 +87,7 @@ export default function Dashboard() {
     setLocation('/login');
   };
 
-  // Load preferences from API
+  // Load preferences from API and refresh user permissions
   useEffect(() => {
     const loadPreferences = async () => {
       try {
@@ -117,7 +117,33 @@ export default function Dashboard() {
       }
     };
 
+    const refreshUserPermissions = async () => {
+      try {
+        // Fetch profile to get updated permissions
+        const profile = await profileService.getProfile();
+        const currentUserStr = localStorage.getItem("user");
+        if (currentUserStr) {
+          const currentUser = JSON.parse(currentUserStr);
+          // Update permissions if available
+          if ((profile as any).permissions) {
+            const updatedUser = {
+              ...currentUser,
+              permissions: (profile as any).permissions,
+            };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            console.log('[Dashboard] Refreshed user permissions:', updatedUser.permissions);
+            // Dispatch event to notify other components
+            window.dispatchEvent(new Event('userUpdated'));
+          }
+        }
+      } catch (error: any) {
+        console.error("Error refreshing user permissions:", error);
+        // Don't block the app if this fails
+      }
+    };
+
     loadPreferences();
+    refreshUserPermissions();
   }, []);
 
   // Callback to refresh preferences after they're updated

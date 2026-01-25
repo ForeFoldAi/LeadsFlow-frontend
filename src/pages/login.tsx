@@ -76,9 +76,11 @@ export default function Login() {
       console.log("Proceeding with normal login (no 2FA required)");
       
       // Fetch full user profile to get all user data (including sub-user data)
-      let fullUserData: UserResponse;
+      let fullUserData: UserResponse | any;
       try {
         fullUserData = await profileService.getProfile();
+        console.log("Profile data received:", fullUserData);
+        console.log("Profile permissions:", (fullUserData as any).permissions);
       } catch (profileError: any) {
         console.warn("Could not fetch user profile, using login response data:", profileError);
         
@@ -97,7 +99,7 @@ export default function Login() {
         } as UserResponse;
       }
       
-      // Store complete user data in localStorage
+      // Store complete user data in localStorage (include permissions if available)
       const user = {
         id: fullUserData.id,
         email: fullUserData.email,
@@ -111,8 +113,31 @@ export default function Login() {
         customIndustry: fullUserData.customIndustry,
         website: fullUserData.website,
         phoneNumber: fullUserData.phoneNumber,
+        // Include permissions if available (for sub-users)
+        permissions: (fullUserData as any).permissions || undefined,
       };
+      console.log("Storing user in localStorage:", user);
+      console.log("User permissions being stored:", user.permissions);
       localStorage.setItem("user", JSON.stringify(user));
+
+      // If permissions are missing, try to fetch them (for sub-users)
+      if (!user.permissions && fullUserData.role !== "Management") {
+        console.log("Permissions missing, attempting to fetch user profile with permissions...");
+        try {
+          // Try fetching profile again - backend might return permissions on second call
+          const profileWithPermissions = await profileService.getProfile();
+          if ((profileWithPermissions as any).permissions) {
+            const updatedUser = {
+              ...user,
+              permissions: (profileWithPermissions as any).permissions,
+            };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            console.log("Updated user with permissions:", updatedUser.permissions);
+          }
+        } catch (permError) {
+          console.warn("Could not fetch permissions:", permError);
+        }
+      }
 
       toast({
         title: "Success",
@@ -198,7 +223,11 @@ export default function Login() {
         customIndustry: fullUserData.customIndustry,
         website: fullUserData.website,
         phoneNumber: fullUserData.phoneNumber,
+        // Include permissions if available (for sub-users)
+        permissions: (fullUserData as any).permissions || undefined,
       };
+      console.log("Storing user in localStorage (2FA):", completeUser);
+      console.log("User permissions being stored (2FA):", completeUser.permissions);
       localStorage.setItem("user", JSON.stringify(completeUser));
       console.log("User data stored successfully");
     } catch (profileError: any) {
