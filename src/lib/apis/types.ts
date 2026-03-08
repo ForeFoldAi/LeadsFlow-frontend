@@ -236,7 +236,7 @@ export enum Industry {
 }
 
 export interface UserBasic {
-  id: number;
+  id: string;
   email: string;
   fullName: string;
   role: string;
@@ -244,7 +244,7 @@ export interface UserBasic {
 }
 
 export interface UserResponse {
-  id: number;
+  id: string;
   email: string;
   fullName: string;
   role: string;
@@ -462,7 +462,7 @@ export enum LeadSource {
 }
 
 export enum Sector {
-  
+
   OTHER = 'other',
 }
 
@@ -623,7 +623,7 @@ export interface LeadResponse {
   name: string;
   phoneNumber: string;
   email?: string;
-  dateOfBirth?: string;
+  dateOfBirth?: string | null;
   city?: string;
   state?: string;
   country?: string;
@@ -631,9 +631,9 @@ export interface LeadResponse {
   companyName?: string;
   designation?: string;
   customerCategory?: string;
-  lastContactedDate?: string;
+  lastContactedDate?: string | null;
   lastContactedBy?: string;
-  nextFollowupDate?: string;
+  nextFollowupDate?: string | null;
   customerInterestedIn?: string;
   preferredCommunicationChannel?: string;
   customCommunicationChannel?: string;
@@ -648,8 +648,8 @@ export interface LeadResponse {
   customSector?: string;
   userId: number;
   user?: UserResponse;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface GetLeadsQuery {
@@ -679,7 +679,7 @@ export interface PaginatedLeadsResponse {
     hasPreviousPage: boolean;
   };
   // Alternative format
-  leads?: Lead[];
+  leads?: LeadResponse[];
   total?: number;
   totalPages?: number;
 }
@@ -929,6 +929,115 @@ export interface AnalyticsResponse {
     startDate: string;
     endDate: string;
   };
+}
+
+// ============================================================================
+// AUTOMATION TYPES
+// ============================================================================
+
+export interface AutomationSchedule {
+  id: string;
+  name: string;
+  channel: 'email' | 'sms' | 'whatsapp';
+  frequency: 'daily' | 'weekly' | 'custom';
+  time: string;
+  days: string | null;
+  templateId: string | null;
+  smsMessage: string | null;
+  whatsappMessage: string | null;
+  targetFilter: string;
+  isActive: boolean;
+  lastRunAt: string | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateScheduleDto {
+  name: string;
+  channel: string;
+  frequency: string;
+  time: string;
+  days?: string;
+  templateId?: string;
+  smsMessage?: string;
+  whatsappMessage?: string;
+  targetFilter?: string;
+}
+
+export interface UpdateScheduleDto {
+  name?: string;
+  channel?: string;
+  frequency?: string;
+  time?: string;
+  days?: string;
+  templateId?: string;
+  smsMessage?: string;
+  whatsappMessage?: string;
+  targetFilter?: string;
+  isActive?: boolean;
+}
+
+// ============================================================================
+// TEMPLATE TYPES
+// ============================================================================
+
+export interface FollowupTemplate {
+  id: string;
+  name: string;
+  sector: string;
+  subject: string;
+  body: string;
+  type: string;
+  userId: string;
+  adminId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateDto {
+  name: string;
+  sector: string;
+  subject: string;
+  body: string;
+  type: string;
+}
+
+export interface UpdateTemplateDto {
+  name?: string;
+  sector?: string;
+  subject?: string;
+  body?: string;
+  type?: string;
+}
+
+// ============================================================================
+// COMMUNICATION TYPES
+// ============================================================================
+
+export interface CommunicationLog {
+  id: string;
+  leadId: string;
+  userId: string;
+  adminId: string;
+  type: string;
+  channel?: string; // API uses 'type', frontend mock uses 'channel'
+  subject: string | null;
+  content: string;
+  body?: string; // frontend mock uses 'body'
+  status: string | null;
+  sentAt: string | null;
+  errorMessage: string | null;
+  companyName?: string;
+  lead?: LeadResponse;
+  user?: UserBasic;
+}
+
+export interface SendMessageDto {
+  leadId: string;
+  type: 'email' | 'sms' | 'whatsapp';
+  subject?: string;
+  content: string;
 }
 
 // ============================================================================

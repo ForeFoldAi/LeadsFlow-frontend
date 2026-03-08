@@ -12,6 +12,10 @@ import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 import FloatingLogo from "@/components/floating-logo";
+import SendEmail from "@/pages/leads-action-center/send-email";
+import Automation from "@/pages/leads-action-center/automation";
+import Templates from "@/pages/leads-action-center/templates";
+import CommunicationLogs from "@/pages/leads-action-center/communication-logs";
 
 function ProtectedRoute({ component: Component, ...props }: any) {
   return (
@@ -59,6 +63,10 @@ function Router() {
       <Route path="/" component={(props) => <ProtectedRoute component={Dashboard} {...props} />} />
       <Route path="/analytics" component={(props) => <ProtectedRoute component={Analytics} {...props} />} />
       <Route path="/settings" component={(props) => <ProtectedRoute component={Settings} {...props} />} />
+      <Route path="/leads-action-center/send-email" component={(props) => <ProtectedRoute component={SendEmail} {...props} />} />
+      <Route path="/leads-action-center/automation" component={(props) => <ProtectedRoute component={Automation} {...props} />} />
+      <Route path="/leads-action-center/templates" component={(props) => <ProtectedRoute component={Templates} {...props} />} />
+      <Route path="/leads-action-center/communication-logs" component={(props) => <ProtectedRoute component={CommunicationLogs} {...props} />} />
       <Route component={NotFound} />
     </Switch>
   );

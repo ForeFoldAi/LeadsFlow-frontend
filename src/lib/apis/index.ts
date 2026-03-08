@@ -14,6 +14,9 @@ export { default as usersService } from './users.service';
 export { default as analyticsService } from './analytics.service';
 export { default as profileService } from './profile.service';
 export { default as notificationsService } from './notifications.service';
+export { default as automationService } from './automation.service';
+export { default as templatesService } from './templates.service';
+export { default as communicationService } from './communication.service';
 
 // Export all types
 export * from './types';

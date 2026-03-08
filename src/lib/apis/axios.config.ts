@@ -9,7 +9,7 @@ const ERROR_COOLDOWN_MS = 30000; // 30 seconds cooldown after max errors
 // Create axios instance
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
-  timeout: 10000, // Reduced timeout to fail faster
+  timeout: 30000, // Increased timeout to accommodate bulk email/SMTP sending
   headers: {
     'Content-Type': 'application/json',
   },
@@ -39,7 +39,7 @@ axiosInstance.interceptors.response.use(
     // Reset global error count on successful response
     globalErrorCount = 0;
     lastErrorTime = 0;
-    
+
     // Debug logging for 2FA endpoints
     if (response.config.url?.includes('2fa')) {
       console.log("🔍 Axios Response Interceptor - 2FA endpoint:", response.config.url);
@@ -53,33 +53,33 @@ axiosInstance.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Check if it's a network/server error (not found, timeout, etc.)
-    const isNetworkError = !error.response || 
-                          error.code === 'ECONNABORTED' || 
-                          error.code === 'ERR_NETWORK' || 
-                          error.code === 'ERR_INTERNET_DISCONNECTED' ||
-                          error.message?.includes('Network Error') || 
-                          error.message?.includes('timeout') ||
-                          error.message?.includes('Failed to fetch');
-    
-    const isServerNotFound = error.response?.status === 404 || 
-                            error.code === 'ERR_NETWORK' ||
-                            error.message?.includes('Failed to fetch');
+    const isNetworkError = !error.response ||
+      error.code === 'ECONNABORTED' ||
+      error.code === 'ERR_NETWORK' ||
+      error.code === 'ERR_INTERNET_DISCONNECTED' ||
+      error.message?.includes('Network Error') ||
+      error.message?.includes('timeout') ||
+      error.message?.includes('Failed to fetch');
+
+    const isServerNotFound = error.response?.status === 404 ||
+      error.code === 'ERR_NETWORK' ||
+      error.message?.includes('Failed to fetch');
 
     // Track network/server errors globally
     if (isNetworkError || isServerNotFound) {
       const now = Date.now();
-      
+
       // If we're in cooldown period, reject immediately
       if (globalErrorCount >= MAX_GLOBAL_ERRORS && (now - lastErrorTime) < ERROR_COOLDOWN_MS) {
         const remainingCooldown = Math.ceil((ERROR_COOLDOWN_MS - (now - lastErrorTime)) / 1000);
         console.error(`Too many errors. Cooldown active. Please wait ${remainingCooldown} seconds.`);
         return Promise.reject(new Error(`Server not found. Too many connection attempts. Please wait ${remainingCooldown} seconds before retrying.`));
       }
-      
+
       // Increment error count and update last error time
       globalErrorCount += 1;
       lastErrorTime = now;
-      
+
       // If we've exceeded max errors, reject with a clear message
       if (globalErrorCount >= MAX_GLOBAL_ERRORS) {
         console.error(`Maximum error limit reached (${MAX_GLOBAL_ERRORS}). Stopping API calls.`);

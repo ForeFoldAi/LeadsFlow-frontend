@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Users, Search, BarChart3, Settings, LogOut, Menu, X, UserCheck, Bell, BellOff } from "lucide-react";
+import {
+  Users, Search, BarChart3, Settings, LogOut, Menu, X, UserCheck, Bell, BellOff,
+  ChevronDown, MessageSquare, Clock, FileText, History, Zap
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
@@ -215,7 +218,7 @@ export default function AppHeader() {
   const navItems = [
     { path: "/", label: "Leads", icon: UserCheck },
     { path: "/analytics", label: "Analytics", icon: BarChart3 },
-    { path: "/settings", label: "Settings", icon: Settings },
+
   ];
 
   return (
@@ -227,9 +230,9 @@ export default function AppHeader() {
             <div className="flex-shrink-0">
               <div className="flex items-center space-x-2 md:space-x-4">
                 <div className="relative">
-                  <img 
-                    src="/logo.png" 
-                    alt="ForeFold AI Logo" 
+                  <img
+                    src="/logo.png"
+                    alt="ForeFold AI Logo"
                     className="h-8 w-8 md:h-12 md:w-12 object-contain filter drop-shadow-lg"
                   />
                   <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-xl"></div>
@@ -271,6 +274,44 @@ export default function AppHeader() {
                   <span className="font-medium">{item.label}</span>
                 </Button>
               ))}
+
+              {/* Lead Action Center Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="default"
+                    className="flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all duration-200 px-4 py-2 rounded-lg border border-transparent hover:border-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    data-testid="nav-lead-action-center"
+                  >
+                    <Zap className="h-5 w-5 text-purple-400" />
+                    <span className="font-medium">Lead Action Center</span>
+                    <ChevronDown className="h-4 w-4 opacity-50 transition-transform duration-200" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-56 bg-slate-800 border-slate-700 shadow-xl animate-in fade-in zoom-in duration-200"
+                  align="start"
+                  sideOffset={8}
+                >
+                  <DropdownMenuItem onClick={() => setLocation("/leads-action-center/send-email")} className="text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer py-2.5">
+                    <MessageSquare className="mr-3 h-4 w-4 text-purple-400" />
+                    <span>Send Messages</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/leads-action-center/automation")} className="text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer py-2.5">
+                    <Clock className="mr-3 h-4 w-4 text-purple-400" />
+                    <span>Automation</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/leads-action-center/templates")} className="text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer py-2.5">
+                    <FileText className="mr-3 h-4 w-4 text-purple-400" />
+                    <span>Templates</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/leads-action-center/communication-logs")} className="text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer py-2.5">
+                    <History className="mr-3 h-4 w-4 text-purple-400" />
+                    <span>Communication Logs</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </nav>
 
             {/* User Menu */}
@@ -294,13 +335,12 @@ export default function AppHeader() {
                   }
                 }}
                 disabled={notificationPermission === "denied"}
-                className={`relative h-10 w-10 rounded-full border border-slate-700 bg-slate-800/40 transition-colors ${
-                  notificationPermission === "denied" 
-                    ? "opacity-50 cursor-not-allowed text-slate-500" 
-                    : isBrowserPushActive 
-                      ? "text-yellow-300 hover:bg-slate-700/60" 
-                      : "text-slate-400 hover:bg-slate-700/60"
-                }`}
+                className={`relative h-10 w-10 rounded-full border border-slate-700 bg-slate-800/40 transition-colors ${notificationPermission === "denied"
+                  ? "opacity-50 cursor-not-allowed text-slate-500"
+                  : isBrowserPushActive
+                    ? "text-yellow-300 hover:bg-slate-700/60"
+                    : "text-slate-400 hover:bg-slate-700/60"
+                  }`}
                 aria-label={
                   notificationPermission === "denied"
                     ? "Notifications blocked - enable in browser settings"
