@@ -957,7 +957,9 @@ export default function LeadTable({ filters, onFiltersChange, onEditLead, userPr
                         <TableCell className="text-xs md:text-sm text-gray-900">
                           {lead.lastContactedDate ? format(new Date(lead.lastContactedDate), 'MMM dd, yyyy') : 'N/A'}
                         </TableCell>
-                        <TableCell className="text-xs md:text-sm text-gray-900">{lead.lastContactedBy || 'N/A'}</TableCell>
+                        <TableCell className="text-xs md:text-sm text-gray-900">
+                          {lead.lastContactedBy || 'N/A'}
+                        </TableCell>
                         {showInterestedColumn && (
                           <TableCell className="text-xs md:text-sm text-gray-900 max-w-xs truncate">
                             {lead.customerInterestedIn || 'N/A'}
