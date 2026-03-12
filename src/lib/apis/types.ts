@@ -982,6 +982,18 @@ export interface UpdateScheduleDto {
 // TEMPLATE TYPES
 // ============================================================================
 
+export enum TemplateCategory {
+  GENERAL = 'general',
+  FOCUSED_TEMPLATE = 'focused_template',
+  FOLLOWUP_TEMPLATE = 'followup_template',
+}
+
+export const TEMPLATE_CATEGORY_LABELS: Record<TemplateCategory, string> = {
+  [TemplateCategory.GENERAL]: 'General',
+  [TemplateCategory.FOCUSED_TEMPLATE]: 'Focused Template',
+  [TemplateCategory.FOLLOWUP_TEMPLATE]: 'Followup Template',
+};
+
 export interface FollowupTemplate {
   id: string;
   name: string;
@@ -989,6 +1001,7 @@ export interface FollowupTemplate {
   subject: string;
   body: string;
   type: string;
+  category: TemplateCategory;
   userId: string;
   adminId: string;
   createdAt: string;
@@ -1001,6 +1014,7 @@ export interface CreateTemplateDto {
   subject: string;
   body: string;
   type: string;
+  category?: TemplateCategory;
 }
 
 export interface UpdateTemplateDto {
@@ -1009,6 +1023,7 @@ export interface UpdateTemplateDto {
   subject?: string;
   body?: string;
   type?: string;
+  category?: TemplateCategory;
 }
 
 // ============================================================================

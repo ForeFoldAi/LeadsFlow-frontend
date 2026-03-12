@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/app-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
 import { Plus, FileText, Edit, Trash2, Eye } from "lucide-react";
-import { templatesService, FollowupTemplate } from "@/lib/apis";
+import { templatesService, FollowupTemplate, TemplateCategory, TEMPLATE_CATEGORY_LABELS } from "@/lib/apis";
 
 const SECTORS = [
   "Roller Flour Mills",
@@ -41,12 +41,44 @@ export default function Templates() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<FollowupTemplate | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<FollowupTemplate | null>(null);
-  const [formData, setFormData] = useState({ name: "", sector: "", subject: "", body: "", type: "email" });
+  const [formData, setFormData] = useState({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [templates, setTemplates] = useState<FollowupTemplate[]>([]);
 
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  const VARIABLES = [
+    { group: "Lead", vars: [
+      { label: "Name", value: "{{name}}" },
+      { label: "Company", value: "{{company}}" },
+      { label: "Email", value: "{{email}}" },
+      { label: "Phone", value: "{{phone}}" },
+      { label: "City", value: "{{city}}" },
+    ]},
+    { group: "Sender", vars: [
+      { label: "Sender Name", value: "{{sender_name}}" },
+      { label: "Sender Company", value: "{{sender_company}}" },
+      { label: "Sender Email", value: "{{sender_email}}" },
+      { label: "Sender Phone", value: "{{sender_phone}}" },
+      { label: "Sender Website", value: "{{sender_website}}" },
+      { label: "Sender Industry", value: "{{sender_industry}}" },
+    ]},
+  ];
+
+  const insertVariable = (variable: string) => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? formData.body.length;
+    const end = el.selectionEnd ?? formData.body.length;
+    const newBody = formData.body.slice(0, start) + variable + formData.body.slice(end);
+    setFormData({ ...formData, body: newBody });
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + variable.length, start + variable.length);
+    }, 0);
+  };
 
   useEffect(() => {
     fetchTemplates();
@@ -71,7 +103,7 @@ export default function Templates() {
   }, {} as Record<string, FollowupTemplate[]>);
 
   const openEdit = (t: FollowupTemplate) => {
-    setFormData({ name: t.name, sector: t.sector, subject: t.subject, body: t.body, type: t.type || "email" });
+    setFormData({ name: t.name, sector: t.sector, subject: t.subject, body: t.body, type: t.type || "email", category: t.category || TemplateCategory.GENERAL });
     setEditTemplate(t);
   };
 
@@ -87,7 +119,7 @@ export default function Templates() {
         toast({ title: "Template created successfully" });
         setIsCreateOpen(false);
       }
-      setFormData({ name: "", sector: "", subject: "", body: "", type: "email" });
+      setFormData({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
       fetchTemplates();
     } catch (error) {
       toast({ title: "Failed to save template", variant: "destructive" });
@@ -118,7 +150,7 @@ export default function Templates() {
               Manage sector-specific email templates for lead outreach
             </p>
           </div>
-          <Button onClick={() => { setFormData({ name: "", sector: "", subject: "", body: "", type: "email" }); setIsCreateOpen(true); }} data-testid="button-create-template">
+          <Button onClick={() => { setFormData({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL }); setIsCreateOpen(true); }} data-testid="button-create-template">
             <Plus className="h-4 w-4 mr-2" />
             New Template
           </Button>
@@ -134,7 +166,7 @@ export default function Templates() {
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-1">No templates yet</h3>
               <p className="text-sm text-muted-foreground mb-4">Create your first email template to start automating outreach</p>
-              <Button onClick={() => { setFormData({ name: "", sector: "", subject: "", body: "", type: "email" }); setIsCreateOpen(true); }} data-testid="button-create-first-template">
+              <Button onClick={() => { setFormData({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL }); setIsCreateOpen(true); }} data-testid="button-create-first-template">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Template
               </Button>
@@ -169,7 +201,10 @@ export default function Templates() {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-xs text-muted-foreground mb-2">Subject:</p>
+                          <div className="flex items-center gap-2 mb-3 flex-wrap">
+                            <Badge variant="outline" className="text-xs">{TEMPLATE_CATEGORY_LABELS[template.category] ?? template.category}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">Subject:</p>
                           <p className="text-sm mb-2 font-medium">{template.subject}</p>
                           <p className="text-xs text-muted-foreground line-clamp-3" dangerouslySetInnerHTML={{ __html: template.body.replace(/<[^>]*>/g, ' ').slice(0, 200) }} />
                         </CardContent>
@@ -188,7 +223,7 @@ export default function Templates() {
               <DialogTitle>{editTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-2">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>Template Name</Label>
                   <Input
@@ -211,6 +246,19 @@ export default function Templates() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <Label>Category</Label>
+                  <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v as TemplateCategory })}>
+                    <SelectTrigger data-testid="select-template-category">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.values(TemplateCategory).map((cat) => (
+                        <SelectItem key={cat} value={cat}>{TEMPLATE_CATEGORY_LABELS[cat]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div>
                 <Label>Subject Line</Label>
@@ -222,13 +270,29 @@ export default function Templates() {
                 />
               </div>
               <div>
-                <Label>
-                  Body (HTML) - Use {"{{name}}"} and {"{{company}}"} for personalization
-                </Label>
+                <Label className="mb-1.5 block">Body</Label>
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2 mb-2 space-y-2">
+                  {VARIABLES.map((group) => (
+                    <div key={group.group} className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium text-muted-foreground w-14 shrink-0">{group.group}:</span>
+                      {group.vars.map((v) => (
+                        <button
+                          key={v.value}
+                          type="button"
+                          onClick={() => insertVariable(v.value)}
+                          className="text-xs px-2 py-1 rounded-md bg-background border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all font-mono"
+                        >
+                          {v.value}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
                 <Textarea
+                  ref={bodyRef}
                   value={formData.body}
                   onChange={(e) => setFormData({ ...formData, body: e.target.value })}
-                  placeholder="<p>Dear {{name}},</p>..."
+                  placeholder="Dear {{name}}&#10;I wanted to reach out to {{company}}..."
                   className="min-h-[200px] font-mono text-sm"
                   data-testid="input-template-body"
                 />

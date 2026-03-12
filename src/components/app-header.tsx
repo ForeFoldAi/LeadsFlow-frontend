@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
-  Users, Search, BarChart3, Settings, LogOut, Menu, X, UserCheck, Bell, BellOff,
+  BarChart3, Settings, LogOut, UserCheck, Bell, BellOff,
   ChevronDown, MessageSquare, Clock, FileText, History, Zap
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,7 +18,6 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function AppHeader() {
   const [, setLocation] = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -226,52 +224,52 @@ export default function AppHeader() {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex justify-between items-center h-16 md:h-20">
           {/* Logo, Brand and Welcome Section */}
-          <div className="flex items-center space-x-3 md:space-x-6">
+          <div className="flex items-center space-x-2 md:space-x-4 min-w-0">
             <div className="flex-shrink-0">
-              <div className="flex items-center space-x-2 md:space-x-4">
-                <div className="relative">
+              <div className="flex items-center space-x-2 md:space-x-3">
+                <div className="relative flex-shrink-0">
                   <img
                     src="/logo.png"
                     alt="ForeFold AI Logo"
-                    className="h-8 w-8 md:h-12 md:w-12 object-contain filter drop-shadow-lg"
+                    className="h-8 w-8 md:h-10 md:w-10 object-contain filter drop-shadow-lg"
                   />
                   <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-xl"></div>
                 </div>
-                <div className="flex flex-col">
-                  <h1 className="text-lg md:text-2xl font-bold bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
+                <div className="flex flex-col min-w-0">
+                  <h1 className="text-base md:text-xl font-bold bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent leading-tight">
                     LeadsFlow
                   </h1>
-                  <p className="text-xs md:text-sm text-slate-400 font-medium tracking-wide">
+                  <p className="text-xs text-slate-400 font-medium tracking-wide hidden sm:block">
                     powered by <span className="text-purple-400">Forefold</span>
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Welcome Section - Hidden on mobile */}
-            <div className="hidden lg:flex flex-col border-l border-slate-600 pl-6">
-              <p className="text-slate-300 text-sm font-medium">Welcome,</p>
-              <p className="text-white text-base font-semibold">
+            {/* Welcome Section - visible on md+ */}
+            <div className="hidden md:flex flex-col border-l border-slate-600 pl-3 lg:pl-5">
+              <p className="text-slate-400 text-xs font-medium">Welcome,</p>
+              <p className="text-white text-sm font-semibold leading-snug max-w-[200px] lg:max-w-[240px] break-words whitespace-normal">
                 {currentUser?.companyName || currentUser?.name || "User"}
               </p>
             </div>
           </div>
 
           {/* Right side - Navigation and User Menu */}
-          <div className="flex items-center space-x-3 md:space-x-6">
+          <div className="flex items-center space-x-1 md:space-x-3">
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex space-x-2">
+            <nav className="hidden md:flex items-center space-x-1">
               {navItems.map((item) => (
                 <Button
                   key={item.path}
                   variant="ghost"
-                  size="default"
+                  size="sm"
                   onClick={() => setLocation(item.path)}
-                  className="flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all duration-200 px-4 py-2 rounded-lg border border-transparent hover:border-slate-600"
+                  className="flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all duration-200 px-2 lg:px-3 py-2 rounded-lg border border-transparent hover:border-slate-600"
                   data-testid={`nav-${item.label.toLowerCase()}`}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span className="font-medium">{item.label}</span>
+                  <item.icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="font-medium text-sm">{item.label}</span>
                 </Button>
               ))}
 
@@ -280,13 +278,14 @@ export default function AppHeader() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="default"
-                    className="flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all duration-200 px-4 py-2 rounded-lg border border-transparent hover:border-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    size="sm"
+                    className="flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all duration-200 px-2 lg:px-3 py-2 rounded-lg border border-transparent hover:border-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0"
                     data-testid="nav-lead-action-center"
                   >
-                    <Zap className="h-5 w-5 text-purple-400" />
-                    <span className="font-medium">Lead Action Center</span>
-                    <ChevronDown className="h-4 w-4 opacity-50 transition-transform duration-200" />
+                    <Zap className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                    <span className="font-medium text-sm hidden lg:inline">Lead Action Center</span>
+                    <span className="font-medium text-sm lg:hidden">Action Center</span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50 flex-shrink-0" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -300,7 +299,7 @@ export default function AppHeader() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLocation("/leads-action-center/automation")} className="text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer py-2.5">
                     <Clock className="mr-3 h-4 w-4 text-purple-400" />
-                    <span>Automation</span>
+                    <span>Schedulers</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLocation("/leads-action-center/templates")} className="text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer py-2.5">
                     <FileText className="mr-3 h-4 w-4 text-purple-400" />
@@ -315,7 +314,7 @@ export default function AppHeader() {
             </nav>
 
             {/* User Menu */}
-            <div className="flex items-center space-x-2 md:space-x-4">
+            <div className="flex items-center space-x-1 md:space-x-2">
               <Button
                 variant="ghost"
                 size="icon"
@@ -366,10 +365,10 @@ export default function AppHeader() {
               </Button>
 
               {/* User Profile Section - Desktop */}
-              <div className="hidden md:flex items-center space-x-3 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-white">{currentUser?.name || "User"}</p>
-                  <p className="text-xs text-slate-400 truncate max-w-[120px]">
+              <div className="hidden md:flex items-center space-x-2 px-2 lg:px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div className="text-right hidden lg:block">
+                  <p className="text-sm font-medium text-white truncate max-w-[130px]">{currentUser?.name || "User"}</p>
+                  <p className="text-xs text-slate-400 truncate max-w-[130px]">
                     {currentUser?.email}
                   </p>
                 </div>

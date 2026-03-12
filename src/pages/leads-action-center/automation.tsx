@@ -335,7 +335,7 @@ export default function Automation() {
                         <SelectItem value="auto">Auto-select by sector</SelectItem>
                         {templates.map((t) => (
                           <SelectItem key={t.id} value={t.id}>
-                            {t.name} ({t.sector})
+                            {t.name} — {t.sector}{t.category ? ` · ${t.category}` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>

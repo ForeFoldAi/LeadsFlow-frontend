@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/app-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,13 +18,53 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InlineLoader } from "@/components/ui/loader";
-import { Send, Search, Mail, Loader2, Eye, MessageSquare, Phone, Users } from "lucide-react";
+import { Send, Search, Mail, Loader2, Eye, MessageSquare, Phone, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+const VARIABLES = [
+  { group: "Lead", vars: [
+    { label: "Name", value: "{{name}}" },
+    { label: "Company", value: "{{company}}" },
+    { label: "Email", value: "{{email}}" },
+    { label: "Phone", value: "{{phone}}" },
+    { label: "City", value: "{{city}}" },
+  ]},
+  { group: "Sender", vars: [
+    { label: "Sender Name", value: "{{sender_name}}" },
+    { label: "Sender Company", value: "{{sender_company}}" },
+    { label: "Sender Email", value: "{{sender_email}}" },
+    { label: "Sender Phone", value: "{{sender_phone}}" },
+    { label: "Sender Website", value: "{{sender_website}}" },
+    { label: "Sender Industry", value: "{{sender_industry}}" },
+  ]},
+];
+
+function VariableChips({ onInsert }: { onInsert: (v: string) => void }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/40 px-2.5 py-2 mb-1.5 space-y-1.5">
+      {VARIABLES.map((group) => (
+        <div key={group.group} className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] font-medium text-muted-foreground w-10 shrink-0">{group.group}:</span>
+          {group.vars.map((v) => (
+            <button
+              key={v.value}
+              type="button"
+              onClick={() => onInsert(v.value)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-background border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all font-mono"
+            >
+              {v.value}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 import {
   leadsService,
   templatesService,
@@ -49,6 +89,24 @@ export default function SendEmail() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
+  const customBodyRef = useRef<HTMLTextAreaElement>(null);
+  const smsRef = useRef<HTMLTextAreaElement>(null);
+  const whatsappRef = useRef<HTMLTextAreaElement>(null);
+
+  const makeInserter = (
+    ref: React.RefObject<HTMLTextAreaElement>,
+    value: string,
+    setValue: (v: string) => void
+  ) => (variable: string) => {
+    const el = ref.current;
+    if (!el) { setValue(value + variable); return; }
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? value.length;
+    const next = value.slice(0, start) + variable + value.slice(end);
+    setValue(next);
+    setTimeout(() => { el.focus(); el.setSelectionRange(start + variable.length, start + variable.length); }, 0);
+  };
+
   // Timer effect
   useEffect(() => {
     let timer: any;
@@ -66,6 +124,7 @@ export default function SendEmail() {
   const [leads, setLeads] = useState<LeadResponse[]>([]);
   const [templates, setTemplates] = useState<FollowupTemplate[]>([]);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [currentLeadIndex, setCurrentLeadIndex] = useState(0);
   const [sectors, setSectors] = useState<string[]>([]);
   const [selectedSector, setSelectedSector] = useState("all");
 
@@ -107,6 +166,7 @@ export default function SendEmail() {
   };
 
   const toggleLeadSelection = (leadId: string) => {
+    setCurrentLeadIndex(0);
     setSelectedLeadIds(prev =>
       prev.includes(leadId)
         ? prev.filter(id => id !== leadId)
@@ -115,6 +175,7 @@ export default function SendEmail() {
   };
 
   const toggleAllLeads = () => {
+    setCurrentLeadIndex(0);
     if (selectedLeadIds.length === leads.length && leads.length > 0) {
       setSelectedLeadIds([]);
     } else {
@@ -123,7 +184,7 @@ export default function SendEmail() {
   };
 
   const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
-  const displayLead = selectedLeads.length > 0 ? selectedLeads[0] : null;
+  const displayLead = selectedLeads.length > 0 ? selectedLeads[currentLeadIndex] ?? selectedLeads[0] : null;
 
   const sectorTemplates = displayLead?.sector
     ? templates.filter((t) => t.sector === displayLead.sector || t.sector === 'general')
@@ -142,20 +203,15 @@ export default function SendEmail() {
         const lead = leads.find(l => l.id === leadId);
         if (!lead || !lead.email) continue;
 
-        const personalizedSubject = useCustom
-          ? customSubject
-          : (template?.subject || "").replace(/{{name}}/g, lead.name).replace(/{{company}}/g, lead.companyName || "your company");
-
-        const personalizedBody = useCustom
-          ? customBody.replace(/{{name}}/g, lead.name).replace(/{{company}}/g, lead.companyName || "your company")
-          : (template?.body || "").replace(/{{name}}/g, lead.name).replace(/{{company}}/g, lead.companyName || "your company");
+        const subject = useCustom ? customSubject : (template?.subject || "");
+        const body = useCustom ? customBody : (template?.body || "");
 
         try {
           await communicationService.sendMessage({
             leadId: lead.id,
             type: "email",
-            subject: personalizedSubject,
-            content: personalizedBody,
+            subject,
+            content: body,
           });
           successCount++;
           if (selectedLeadIds.length > 1) {
@@ -199,15 +255,11 @@ export default function SendEmail() {
         const lead = leads.find(l => l.id === leadId);
         if (!lead || !lead.phoneNumber) continue;
 
-        const personalizedContent = smsMessage
-          .replace(/{{name}}/g, lead.name)
-          .replace(/{{company}}/g, lead.companyName || "your company");
-
         try {
           await communicationService.sendMessage({
             leadId: lead.id,
             type: "sms",
-            content: personalizedContent,
+            content: smsMessage,
           });
           successCount++;
           if (selectedLeadIds.length > 1) {
@@ -246,15 +298,11 @@ export default function SendEmail() {
         const lead = leads.find(l => l.id === leadId);
         if (!lead || !lead.phoneNumber) continue;
 
-        const personalizedContent = whatsappMessage
-          .replace(/{{name}}/g, lead.name)
-          .replace(/{{company}}/g, lead.companyName || "your company");
-
         try {
           await communicationService.sendMessage({
             leadId: lead.id,
             type: "whatsapp",
-            content: personalizedContent,
+            content: whatsappMessage,
           });
           successCount++;
           if (selectedLeadIds.length > 1) {
@@ -408,8 +456,30 @@ export default function SendEmail() {
               <CardHeader className="py-3">
                 <CardTitle className="text-sm flex items-center justify-between">
                   <span>Lead Details</span>
-                  {selectedLeadIds.length > 1 && (
-                    <Badge variant="outline" className="text-[10px] font-normal">Previewing first selection</Badge>
+                  {selectedLeads.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {currentLeadIndex + 1} / {selectedLeads.length}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        disabled={currentLeadIndex === 0}
+                        onClick={() => setCurrentLeadIndex(i => i - 1)}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        disabled={currentLeadIndex === selectedLeads.length - 1}
+                        onClick={() => setCurrentLeadIndex(i => i + 1)}
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   )}
                 </CardTitle>
               </CardHeader>
@@ -475,7 +545,7 @@ export default function SendEmail() {
                             <SelectContent>
                               {sectorTemplates.length > 0 ? (
                                 sectorTemplates.map((t) => (
-                                  <SelectItem key={t.id} value={t.id}>{t.name} ({t.sector})</SelectItem>
+                                  <SelectItem key={t.id} value={t.id}>{t.name} — {t.sector}{t.category ? ` · ${t.category}` : ''}</SelectItem>
                                 ))
                               ) : (
                                 <SelectItem value="none" disabled>No templates available</SelectItem>
@@ -491,11 +561,13 @@ export default function SendEmail() {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Message Body</Label>
+                            <VariableChips onInsert={makeInserter(customBodyRef, customBody, setCustomBody)} />
                             <Textarea
+                              ref={customBodyRef}
                               value={customBody}
                               onChange={(e) => setCustomBody(e.target.value)}
                               placeholder="Dear {{name}},..."
-                              className="min-h-[100px] text-xs"
+                              className="min-h-[100px] text-xs font-mono"
                             />
                           </div>
                         </>
@@ -514,11 +586,13 @@ export default function SendEmail() {
                     <TabsContent value="sms" className="space-y-3 mt-3">
                       <div className="space-y-1">
                         <Label className="text-xs">SMS Message</Label>
+                        <VariableChips onInsert={makeInserter(smsRef, smsMessage, setSmsMessage)} />
                         <Textarea
+                          ref={smsRef}
                           value={smsMessage}
                           onChange={(e) => setSmsMessage(e.target.value)}
-                          className="min-h-[80px] text-xs"
-                          placeholder="Type your SMS here..."
+                          className="min-h-[80px] text-xs font-mono"
+                          placeholder="Dear {{name}}, ..."
                         />
                         <p className="text-[10px] text-muted-foreground text-right">{smsMessage.length}/160</p>
                       </div>
@@ -531,11 +605,13 @@ export default function SendEmail() {
                     <TabsContent value="whatsapp" className="space-y-3 mt-3">
                       <div className="space-y-1">
                         <Label className="text-xs">WhatsApp Message</Label>
+                        <VariableChips onInsert={makeInserter(whatsappRef, whatsappMessage, setWhatsappMessage)} />
                         <Textarea
+                          ref={whatsappRef}
                           value={whatsappMessage}
                           onChange={(e) => setWhatsappMessage(e.target.value)}
-                          className="min-h-[80px] text-xs"
-                          placeholder="Type your WhatsApp message here..."
+                          className="min-h-[80px] text-xs font-mono"
+                          placeholder="Dear {{name}}, ..."
                         />
                       </div>
                       <Button size="sm" className="w-full h-8 text-xs" onClick={handleSendWhatsapp} disabled={!canSendWhatsapp || isSending}>

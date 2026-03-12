@@ -67,7 +67,7 @@ export default function MobileBottomNav() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setLocation("/leads-action-center/automation")} className="cursor-pointer py-3">
               <Clock className="mr-3 h-4 w-4 text-blue-600" />
-              <span>Automation</span>
+              <span>Schedulers</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setLocation("/leads-action-center/templates")} className="cursor-pointer py-3">
               <FileText className="mr-3 h-4 w-4 text-blue-600" />
