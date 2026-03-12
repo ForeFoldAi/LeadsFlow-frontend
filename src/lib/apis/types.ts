@@ -943,6 +943,7 @@ export interface AutomationSchedule {
   time: string;
   days: string | null;
   templateId: string | null;
+  templateIds: string[] | null;
   smsMessage: string | null;
   whatsappMessage: string | null;
   targetFilter: string;
@@ -960,6 +961,7 @@ export interface CreateScheduleDto {
   time: string;
   days?: string;
   templateId?: string;
+  templateIds?: string[];
   smsMessage?: string;
   whatsappMessage?: string;
   targetFilter?: string;
@@ -972,6 +974,7 @@ export interface UpdateScheduleDto {
   time?: string;
   days?: string;
   templateId?: string;
+  templateIds?: string[];
   smsMessage?: string;
   whatsappMessage?: string;
   targetFilter?: string;
@@ -1011,6 +1014,15 @@ export interface FollowupTemplate {
 export interface CreateTemplateDto {
   name: string;
   sector: string;
+  subject: string;
+  body: string;
+  type: string;
+  category?: TemplateCategory;
+}
+
+export interface BulkCreateTemplateDto {
+  name: string;
+  sectors: string[];
   subject: string;
   body: string;
   type: string;

@@ -2,6 +2,7 @@ import axiosInstance from './axios.config';
 import {
     FollowupTemplate,
     CreateTemplateDto,
+    BulkCreateTemplateDto,
     UpdateTemplateDto,
 } from './types';
 
@@ -27,6 +28,14 @@ export const templatesService = {
      */
     createTemplate: async (data: CreateTemplateDto): Promise<FollowupTemplate> => {
         const response = await axiosInstance.post<FollowupTemplate>('/templates', data);
+        return response.data;
+    },
+
+    /**
+     * Bulk create templates (one per sector)
+     */
+    bulkCreateTemplates: async (data: BulkCreateTemplateDto): Promise<FollowupTemplate[]> => {
+        const response = await axiosInstance.post<FollowupTemplate[]>('/templates/bulk', data);
         return response.data;
     },
 

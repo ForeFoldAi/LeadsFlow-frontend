@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import RichTextEditor, { RichTextEditorRef } from "@/components/ui/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InlineLoader } from "@/components/ui/loader";
+import { TemplateMultiSelect } from "@/components/ui/template-multi-select";
 import { Send, Search, Mail, Loader2, Eye, MessageSquare, Phone, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Dialog,
@@ -76,7 +78,7 @@ import {
 export default function SendEmail() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [customSubject, setCustomSubject] = useState("");
   const [customBody, setCustomBody] = useState("");
   const [useCustom, setUseCustom] = useState(false);
@@ -89,11 +91,11 @@ export default function SendEmail() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const customBodyRef = useRef<HTMLTextAreaElement>(null);
+  const customBodyRef = useRef<RichTextEditorRef>(null);
   const smsRef = useRef<HTMLTextAreaElement>(null);
   const whatsappRef = useRef<HTMLTextAreaElement>(null);
 
-  const makeInserter = (
+  const makePlainInserter = (
     ref: React.RefObject<HTMLTextAreaElement>,
     value: string,
     setValue: (v: string) => void
@@ -186,9 +188,29 @@ export default function SendEmail() {
   const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
   const displayLead = selectedLeads.length > 0 ? selectedLeads[currentLeadIndex] ?? selectedLeads[0] : null;
 
-  const sectorTemplates = displayLead?.sector
-    ? templates.filter((t) => t.sector === displayLead.sector || t.sector === 'general')
+  // All unique sectors from selected leads
+  const selectedLeadSectors = Array.from(new Set(selectedLeads.map(l => l.sector).filter(Boolean)));
+
+  // Templates matching any selected lead's sector (or show all if no leads selected)
+  const availableTemplates = selectedLeads.length > 0
+    ? templates.filter((t) =>
+        !t.sector ||
+        selectedLeadSectors.includes(t.sector) ||
+        t.sector.toLowerCase() === 'general'
+      )
     : templates;
+
+  // For a given lead, find the best matching template from the selected ones
+  const getTemplateForLead = (lead: LeadResponse): FollowupTemplate | undefined => {
+    if (selectedTemplateIds.length === 0) return undefined;
+    // First try to find a template matching the lead's sector
+    const sectorMatch = selectedTemplateIds
+      .map(id => templates.find(t => t.id === id))
+      .find(t => t && t.sector === lead.sector);
+    if (sectorMatch) return sectorMatch;
+    // Fallback: first selected template
+    return templates.find(t => t.id === selectedTemplateIds[0]);
+  };
 
   const handleSendEmail = async () => {
     if (selectedLeadIds.length === 0) return;
@@ -198,13 +220,23 @@ export default function SendEmail() {
     let lastFailMessage = "";
 
     try {
-      const template = templates.find(t => t.id === selectedTemplateId);
       for (const leadId of selectedLeadIds) {
         const lead = leads.find(l => l.id === leadId);
         if (!lead || !lead.email) continue;
 
-        const subject = useCustom ? customSubject : (template?.subject || "");
-        const body = useCustom ? customBody : (template?.body || "");
+        let subject: string;
+        let body: string;
+
+        if (useCustom) {
+          subject = customSubject;
+          body = customBody;
+        } else {
+          const template = getTemplateForLead(lead);
+          subject = template?.subject || "";
+          body = template?.body || "";
+        }
+
+        if (!body) continue;
 
         try {
           await communicationService.sendMessage({
@@ -330,18 +362,21 @@ export default function SendEmail() {
   };
 
   const getPreview = () => {
-    const template = templates.find(t => t.id === selectedTemplateId);
-    let body = useCustom ? customBody : (template?.body || "");
-
+    let body: string;
+    if (useCustom) {
+      body = customBody;
+    } else {
+      const template = displayLead ? getTemplateForLead(displayLead) : templates.find(t => t.id === selectedTemplateIds[0]);
+      body = template?.body || "";
+    }
     if (!displayLead) return body;
-
     return body
       .replace(/{{name}}/g, displayLead.name)
       .replace(/{{company}}/g, displayLead.companyName || "your company")
       .replace(/\n/g, '<br />');
   };
 
-  const canSendEmail = (useCustom ? customSubject && customBody : (selectedTemplateId && selectedTemplateId !== "none")) && selectedLeadIds.length > 0;
+  const canSendEmail = (useCustom ? (customSubject && customBody) : selectedTemplateIds.length > 0) && selectedLeadIds.length > 0;
   const canSendSms = selectedLeadIds.length > 0 && smsMessage;
   const canSendWhatsapp = selectedLeadIds.length > 0 && whatsappMessage;
 
@@ -537,21 +572,22 @@ export default function SendEmail() {
                       </div>
                       {!useCustom ? (
                         <div className="space-y-1">
-                          <Label className="text-xs">Select Template</Label>
-                          <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Choose a template" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sectorTemplates.length > 0 ? (
-                                sectorTemplates.map((t) => (
-                                  <SelectItem key={t.id} value={t.id}>{t.name} — {t.sector}{t.category ? ` · ${t.category}` : ''}</SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem value="none" disabled>No templates available</SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
+                          <Label className="text-xs">Select Templates</Label>
+                          <TemplateMultiSelect
+                            templates={availableTemplates}
+                            selectedIds={selectedTemplateIds}
+                            onChange={setSelectedTemplateIds}
+                            placeholder="Choose templates…"
+                            hint={
+                              availableTemplates.length === 0
+                                ? "No templates found for selected lead sectors"
+                                : selectedTemplateIds.length > 1
+                                ? "Each lead receives the template that matches their sector"
+                                : undefined
+                            }
+                            size="sm"
+                            data-testid="select-template"
+                          />
                         </div>
                       ) : (
                         <>
@@ -561,13 +597,13 @@ export default function SendEmail() {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Message Body</Label>
-                            <VariableChips onInsert={makeInserter(customBodyRef, customBody, setCustomBody)} />
-                            <Textarea
+                            <VariableChips onInsert={(v) => customBodyRef.current?.insertAtCursor(v)} />
+                            <RichTextEditor
                               ref={customBodyRef}
                               value={customBody}
-                              onChange={(e) => setCustomBody(e.target.value)}
+                              onChange={setCustomBody}
                               placeholder="Dear {{name}},..."
-                              className="min-h-[100px] text-xs font-mono"
+                              minHeight="120px"
                             />
                           </div>
                         </>
@@ -586,7 +622,7 @@ export default function SendEmail() {
                     <TabsContent value="sms" className="space-y-3 mt-3">
                       <div className="space-y-1">
                         <Label className="text-xs">SMS Message</Label>
-                        <VariableChips onInsert={makeInserter(smsRef, smsMessage, setSmsMessage)} />
+                        <VariableChips onInsert={makePlainInserter(smsRef, smsMessage, setSmsMessage)} />
                         <Textarea
                           ref={smsRef}
                           value={smsMessage}
@@ -605,7 +641,7 @@ export default function SendEmail() {
                     <TabsContent value="whatsapp" className="space-y-3 mt-3">
                       <div className="space-y-1">
                         <Label className="text-xs">WhatsApp Message</Label>
-                        <VariableChips onInsert={makeInserter(whatsappRef, whatsappMessage, setWhatsappMessage)} />
+                        <VariableChips onInsert={makePlainInserter(whatsappRef, whatsappMessage, setWhatsappMessage)} />
                         <Textarea
                           ref={whatsappRef}
                           value={whatsappMessage}
@@ -638,9 +674,11 @@ export default function SendEmail() {
                 <div className="p-2.5 bg-muted/50 rounded-md border text-xs">
                   <p className="text-[10px] text-muted-foreground mb-0.5">Subject:</p>
                   <p className="font-medium">
-                    {useCustom ? customSubject : (templates.find(t => t.id === selectedTemplateId)?.subject || "")
-                      .replace(/{{name}}/g, displayLead?.name || "")
-                      .replace(/{{company}}/g, displayLead?.companyName || "")}
+                    {useCustom
+                      ? customSubject
+                      : (displayLead ? getTemplateForLead(displayLead)?.subject || "" : templates.find(t => t.id === selectedTemplateIds[0])?.subject || "")
+                          .replace(/{{name}}/g, displayLead?.name || "")
+                          .replace(/{{company}}/g, displayLead?.companyName || "")}
                   </p>
                 </div>
                 <div className="border rounded-md p-4 text-sm bg-white min-h-[200px]">

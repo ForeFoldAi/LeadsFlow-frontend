@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -16,11 +15,13 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
-import { Plus, FileText, Edit, Trash2, Eye } from "lucide-react";
+import RichTextEditor, { RichTextEditorRef } from "@/components/ui/rich-text-editor";
+import { Plus, FileText, Edit, Trash2, Eye, ChevronDown } from "lucide-react";
 import { templatesService, FollowupTemplate, TemplateCategory, TEMPLATE_CATEGORY_LABELS } from "@/lib/apis";
 
 const SECTORS = [
@@ -41,12 +42,20 @@ export default function Templates() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<FollowupTemplate | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<FollowupTemplate | null>(null);
-  const [formData, setFormData] = useState({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
+  const [formData, setFormData] = useState({
+    name: "",
+    sectors: [] as string[],
+    subject: "",
+    body: "",
+    type: "email",
+    category: TemplateCategory.GENERAL,
+  });
+  const [sectorOpen, setSectorOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [templates, setTemplates] = useState<FollowupTemplate[]>([]);
 
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyEditorRef = useRef<RichTextEditorRef>(null);
   const { toast } = useToast();
 
   const VARIABLES = [
@@ -67,29 +76,14 @@ export default function Templates() {
     ]},
   ];
 
-  const insertVariable = (variable: string) => {
-    const el = bodyRef.current;
-    if (!el) return;
-    const start = el.selectionStart ?? formData.body.length;
-    const end = el.selectionEnd ?? formData.body.length;
-    const newBody = formData.body.slice(0, start) + variable + formData.body.slice(end);
-    setFormData({ ...formData, body: newBody });
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + variable.length, start + variable.length);
-    }, 0);
-  };
-
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
+  useEffect(() => { fetchTemplates(); }, []);
 
   const fetchTemplates = async () => {
     setIsLoading(true);
     try {
       const data = await templatesService.getAllTemplates();
       setTemplates(data);
-    } catch (error) {
+    } catch {
       toast({ title: "Failed to load templates", variant: "destructive" });
     } finally {
       setIsLoading(false);
@@ -103,25 +97,70 @@ export default function Templates() {
   }, {} as Record<string, FollowupTemplate[]>);
 
   const openEdit = (t: FollowupTemplate) => {
-    setFormData({ name: t.name, sector: t.sector, subject: t.subject, body: t.body, type: t.type || "email", category: t.category || TemplateCategory.GENERAL });
+    setFormData({
+      name: t.name,
+      sectors: [t.sector],
+      subject: t.subject,
+      body: t.body,
+      type: t.type || "email",
+      category: t.category || TemplateCategory.GENERAL,
+    });
     setEditTemplate(t);
   };
 
+  const toggleSector = (sector: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      sectors: prev.sectors.includes(sector)
+        ? prev.sectors.filter((s) => s !== sector)
+        : [...prev.sectors, sector],
+    }));
+  };
+
   const handleSave = async () => {
+    if (formData.sectors.length === 0) {
+      toast({ title: "Please select at least one sector", variant: "destructive" });
+      return;
+    }
     setIsSaving(true);
     try {
       if (editTemplate) {
-        await templatesService.updateTemplate(editTemplate.id, formData);
+        await templatesService.updateTemplate(editTemplate.id, {
+          name: formData.name,
+          sector: formData.sectors[0],
+          subject: formData.subject,
+          body: formData.body,
+          type: formData.type,
+          category: formData.category,
+        });
         toast({ title: "Template updated successfully" });
         setEditTemplate(null);
+      } else if (formData.sectors.length > 1) {
+        await templatesService.bulkCreateTemplates({
+          name: formData.name,
+          sectors: formData.sectors,
+          subject: formData.subject,
+          body: formData.body,
+          type: formData.type,
+          category: formData.category,
+        });
+        toast({ title: `${formData.sectors.length} templates created (one per sector)` });
+        setIsCreateOpen(false);
       } else {
-        await templatesService.createTemplate(formData);
+        await templatesService.createTemplate({
+          name: formData.name,
+          sector: formData.sectors[0],
+          subject: formData.subject,
+          body: formData.body,
+          type: formData.type,
+          category: formData.category,
+        });
         toast({ title: "Template created successfully" });
         setIsCreateOpen(false);
       }
-      setFormData({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
+      setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
       fetchTemplates();
-    } catch (error) {
+    } catch {
       toast({ title: "Failed to save template", variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -133,9 +172,14 @@ export default function Templates() {
       await templatesService.deleteTemplate(id);
       toast({ title: "Template deleted" });
       fetchTemplates();
-    } catch (error) {
+    } catch {
       toast({ title: "Failed to delete template", variant: "destructive" });
     }
+  };
+
+  const resetAndOpen = () => {
+    setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
+    setIsCreateOpen(true);
   };
 
   return (
@@ -150,7 +194,7 @@ export default function Templates() {
               Manage sector-specific email templates for lead outreach
             </p>
           </div>
-          <Button onClick={() => { setFormData({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL }); setIsCreateOpen(true); }} data-testid="button-create-template">
+          <Button onClick={resetAndOpen} data-testid="button-create-template">
             <Plus className="h-4 w-4 mr-2" />
             New Template
           </Button>
@@ -166,7 +210,7 @@ export default function Templates() {
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-1">No templates yet</h3>
               <p className="text-sm text-muted-foreground mb-4">Create your first email template to start automating outreach</p>
-              <Button onClick={() => { setFormData({ name: "", sector: "", subject: "", body: "", type: "email", category: TemplateCategory.GENERAL }); setIsCreateOpen(true); }} data-testid="button-create-first-template">
+              <Button onClick={resetAndOpen} data-testid="button-create-first-template">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Template
               </Button>
@@ -202,6 +246,7 @@ export default function Templates() {
                         </CardHeader>
                         <CardContent>
                           <div className="flex items-center gap-2 mb-3 flex-wrap">
+                            <Badge variant="secondary" className="text-xs">{template.sector}</Badge>
                             <Badge variant="outline" className="text-xs">{TEMPLATE_CATEGORY_LABELS[template.category] ?? template.category}</Badge>
                           </div>
                           <p className="text-xs text-muted-foreground mb-1">Subject:</p>
@@ -217,8 +262,9 @@ export default function Templates() {
           </ScrollArea>
         )}
 
+        {/* Create / Edit Dialog */}
         <Dialog open={isCreateOpen || !!editTemplate} onOpenChange={() => { setIsCreateOpen(false); setEditTemplate(null); }}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
             </DialogHeader>
@@ -233,19 +279,55 @@ export default function Templates() {
                     data-testid="input-template-name"
                   />
                 </div>
+
+                {/* Multi-sector with checkboxes */}
                 <div>
                   <Label>Sector</Label>
-                  <Select value={formData.sector} onValueChange={(v) => setFormData({ ...formData, sector: v })}>
-                    <SelectTrigger data-testid="select-template-sector">
-                      <SelectValue placeholder="Select sector" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SECTORS.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={sectorOpen} onOpenChange={setSectorOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-between font-normal h-10 text-sm"
+                        data-testid="select-template-sector"
+                      >
+                        <span className="truncate text-left">
+                          {formData.sectors.length === 0
+                            ? <span className="text-muted-foreground">Select sectors</span>
+                            : formData.sectors.length === 1
+                            ? formData.sectors[0]
+                            : `${formData.sectors.length} sectors`}
+                        </span>
+                        <ChevronDown className="h-4 w-4 shrink-0 opacity-50 ml-2" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2" align="start">
+                      <ScrollArea className="h-56">
+                        <div className="space-y-0.5 pr-2">
+                          {SECTORS.map((sector) => (
+                            <label
+                              key={sector}
+                              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-sm select-none"
+                            >
+                              <Checkbox
+                                checked={formData.sectors.includes(sector)}
+                                onCheckedChange={() => toggleSector(sector)}
+                              />
+                              {sector}
+                            </label>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      {formData.sectors.length > 0 && (
+                        <div className="border-t pt-2 mt-1">
+                          <p className="text-xs text-muted-foreground px-2">
+                            {formData.sectors.length} selected → {formData.sectors.length} template{formData.sectors.length > 1 ? "s" : ""} will be created
+                          </p>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
                 </div>
+
                 <div>
                   <Label>Category</Label>
                   <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v as TemplateCategory })}>
@@ -260,6 +342,7 @@ export default function Templates() {
                   </Select>
                 </div>
               </div>
+
               <div>
                 <Label>Subject Line</Label>
                 <Input
@@ -269,6 +352,7 @@ export default function Templates() {
                   data-testid="input-template-subject"
                 />
               </div>
+
               <div>
                 <Label className="mb-1.5 block">Body</Label>
                 <div className="rounded-md border border-border bg-muted/40 px-3 py-2 mb-2 space-y-2">
@@ -279,7 +363,7 @@ export default function Templates() {
                         <button
                           key={v.value}
                           type="button"
-                          onClick={() => insertVariable(v.value)}
+                          onClick={() => bodyEditorRef.current?.insertAtCursor(v.value)}
                           className="text-xs px-2 py-1 rounded-md bg-background border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all font-mono"
                         >
                           {v.value}
@@ -288,13 +372,12 @@ export default function Templates() {
                     </div>
                   ))}
                 </div>
-                <Textarea
-                  ref={bodyRef}
+                <RichTextEditor
+                  ref={bodyEditorRef}
                   value={formData.body}
-                  onChange={(e) => setFormData({ ...formData, body: e.target.value })}
-                  placeholder="Dear {{name}}&#10;I wanted to reach out to {{company}}..."
-                  className="min-h-[200px] font-mono text-sm"
-                  data-testid="input-template-body"
+                  onChange={(html) => setFormData((prev) => ({ ...prev, body: html }))}
+                  placeholder="Dear {{name}}, I wanted to reach out to {{company}}..."
+                  minHeight="220px"
                 />
               </div>
             </div>
@@ -304,15 +387,20 @@ export default function Templates() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!formData.name || !formData.sector || !formData.subject || !formData.body || isSaving}
+                disabled={!formData.name || formData.sectors.length === 0 || !formData.subject || !formData.body || isSaving}
                 data-testid="button-save-template"
               >
-                {isSaving ? "Saving..." : "Save Template"}
+                {isSaving
+                  ? "Saving..."
+                  : editTemplate
+                  ? "Save Changes"
+                  : `Create${formData.sectors.length > 1 ? ` (${formData.sectors.length})` : ""}`}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
+        {/* Preview Dialog */}
         <Dialog open={!!previewTemplate} onOpenChange={() => setPreviewTemplate(null)}>
           <DialogContent className="max-w-2xl">
             {previewTemplate && (

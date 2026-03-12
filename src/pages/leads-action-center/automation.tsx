@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
+import { TemplateMultiSelect } from "@/components/ui/template-multi-select";
 import {
   Calendar,
   Clock,
@@ -77,6 +78,7 @@ export default function Automation() {
   const [formTime, setFormTime] = useState("09:00");
   const [formDays, setFormDays] = useState("");
   const [formTemplateId, setFormTemplateId] = useState("");
+  const [formTemplateIds, setFormTemplateIds] = useState<string[]>([]);
   const [formSmsMessage, setFormSmsMessage] = useState("");
   const [formWhatsappMessage, setFormWhatsappMessage] = useState("");
 
@@ -127,9 +129,11 @@ export default function Automation() {
     setFormTime("09:00");
     setFormDays("");
     setFormTemplateId("");
+    setFormTemplateIds([]);
     setFormSmsMessage("");
     setFormWhatsappMessage("");
   }
+
 
   async function handleCreate() {
     if (!formName.trim()) {
@@ -145,7 +149,7 @@ export default function Automation() {
         frequency: formFrequency,
         time: formTime,
         days: formFrequency === "custom" ? formDays : undefined,
-        templateId: formChannel === "email" && formTemplateId ? formTemplateId : undefined,
+        templateIds: formChannel === "email" && formTemplateIds.length > 0 ? formTemplateIds : undefined,
         smsMessage: formChannel === "sms" ? formSmsMessage : undefined,
         whatsappMessage: formChannel === "whatsapp" ? formWhatsappMessage : undefined,
         targetFilter: "due_followup",
@@ -326,23 +330,19 @@ export default function Automation() {
 
                 {formChannel === "email" && (
                   <div>
-                    <Label>Email Template</Label>
-                    <Select value={formTemplateId || "auto"} onValueChange={(v) => setFormTemplateId(v === "auto" ? "" : v)}>
-                      <SelectTrigger data-testid="select-template">
-                        <SelectValue placeholder="Auto-select by sector" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">Auto-select by sector</SelectItem>
-                        {templates.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name} — {t.sector}{t.category ? ` · ${t.category}` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Auto-select picks the best template matching each lead's sector
-                    </p>
+                    <Label className="mb-1.5 block">Email Templates</Label>
+                    <TemplateMultiSelect
+                      templates={templates}
+                      selectedIds={formTemplateIds}
+                      onChange={setFormTemplateIds}
+                      placeholder="Auto-select by sector"
+                      hint={
+                        formTemplateIds.length === 0
+                          ? "No selection — auto-picks the template matching each lead's sector"
+                          : "Each lead receives a randomly picked template from the selection"
+                      }
+                      data-testid="select-template"
+                    />
                   </div>
                 )}
 
