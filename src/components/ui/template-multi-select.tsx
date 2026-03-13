@@ -2,8 +2,6 @@ import { useState, useMemo } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronDown, X, FileText } from "lucide-react";
 import { FollowupTemplate, TEMPLATE_CATEGORY_LABELS, TemplateCategory } from "@/lib/apis";
@@ -121,7 +119,11 @@ export function TemplateMultiSelect({
           </div>
 
           {/* List */}
-          <ScrollArea className="max-h-64">
+          <div
+            className="overflow-y-auto"
+            style={{ maxHeight: 240, overscrollBehavior: "contain" }}
+            onWheel={(e) => e.stopPropagation()}
+          >
             {Object.keys(grouped).length === 0 ? (
               <div className="py-6 text-center">
                 <FileText className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
@@ -173,7 +175,7 @@ export function TemplateMultiSelect({
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {/* Footer */}
           {selectedIds.length > 0 && (

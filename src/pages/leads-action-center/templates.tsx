@@ -21,22 +21,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
 import RichTextEditor, { RichTextEditorRef } from "@/components/ui/rich-text-editor";
-import { Plus, FileText, Edit, Trash2, Eye, ChevronDown } from "lucide-react";
-import { templatesService, FollowupTemplate, TemplateCategory, TEMPLATE_CATEGORY_LABELS } from "@/lib/apis";
-
-const SECTORS = [
-  "Roller Flour Mills",
-  "Financial Services",
-  "Industrials",
-  "FMCG + Cold Chain",
-  "Educational Institution",
-  "Pharmaceuticals",
-  "Logistics",
-  "Industrials - Solar",
-  "Interior Design & Build Services",
-  "Real Estate - Plots",
-  "Property Management",
-];
+import { Plus, FileText, Edit, Trash2, Eye, ChevronDown, Search } from "lucide-react";
+import { templatesService, leadsService, FollowupTemplate, TemplateCategory, TEMPLATE_CATEGORY_LABELS } from "@/lib/apis";
 
 export default function Templates() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -51,9 +37,11 @@ export default function Templates() {
     category: TemplateCategory.GENERAL,
   });
   const [sectorOpen, setSectorOpen] = useState(false);
+  const [sectorSearch, setSectorSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [templates, setTemplates] = useState<FollowupTemplate[]>([]);
+  const [availableSectors, setAvailableSectors] = useState<string[]>([]);
 
   const bodyEditorRef = useRef<RichTextEditorRef>(null);
   const { toast } = useToast();
@@ -76,13 +64,17 @@ export default function Templates() {
     ]},
   ];
 
-  useEffect(() => { fetchTemplates(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const fetchTemplates = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
     try {
-      const data = await templatesService.getAllTemplates();
+      const [data, sectors] = await Promise.all([
+        templatesService.getAllTemplates(),
+        leadsService.getSectors(),
+      ]);
       setTemplates(data);
+      setAvailableSectors(sectors);
     } catch {
       toast({ title: "Failed to load templates", variant: "destructive" });
     } finally {
@@ -159,7 +151,7 @@ export default function Templates() {
         setIsCreateOpen(false);
       }
       setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
-      fetchTemplates();
+      fetchData();
     } catch {
       toast({ title: "Failed to save template", variant: "destructive" });
     } finally {
@@ -171,7 +163,7 @@ export default function Templates() {
     try {
       await templatesService.deleteTemplate(id);
       toast({ title: "Template deleted" });
-      fetchTemplates();
+      fetchData();
     } catch {
       toast({ title: "Failed to delete template", variant: "destructive" });
     }
@@ -283,7 +275,7 @@ export default function Templates() {
                 {/* Multi-sector with checkboxes */}
                 <div>
                   <Label>Sector</Label>
-                  <Popover open={sectorOpen} onOpenChange={setSectorOpen}>
+                  <Popover open={sectorOpen} onOpenChange={(o) => { setSectorOpen(o); if (!o) setSectorSearch(""); }}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -300,26 +292,45 @@ export default function Templates() {
                         <ChevronDown className="h-4 w-4 shrink-0 opacity-50 ml-2" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-64 p-2" align="start">
-                      <ScrollArea className="h-56">
-                        <div className="space-y-0.5 pr-2">
-                          {SECTORS.map((sector) => (
-                            <label
-                              key={sector}
-                              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-sm select-none"
-                            >
-                              <Checkbox
-                                checked={formData.sectors.includes(sector)}
-                                onCheckedChange={() => toggleSector(sector)}
-                              />
-                              {sector}
-                            </label>
-                          ))}
-                        </div>
-                      </ScrollArea>
+                    <PopoverContent className="w-64 p-0" align="start">
+                      <div className="flex items-center gap-2 px-3 py-2 border-b">
+                        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <input
+                          className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                          placeholder="Search sectors…"
+                          value={sectorSearch}
+                          onChange={(e) => setSectorSearch(e.target.value)}
+                        />
+                      </div>
+                      <div
+                        className="overflow-y-auto"
+                        style={{ maxHeight: 224, overscrollBehavior: "contain" }}
+                        onWheel={(e) => e.stopPropagation()}
+                      >
+                        {availableSectors.filter(s => s.toLowerCase().includes(sectorSearch.toLowerCase())).length === 0 ? (
+                          <p className="text-xs text-muted-foreground px-3 py-4 text-center">No sectors found</p>
+                        ) : (
+                          <div className="py-1">
+                            {availableSectors
+                              .filter(s => s.toLowerCase().includes(sectorSearch.toLowerCase()))
+                              .map((sector) => (
+                                <label
+                                  key={sector}
+                                  className="flex items-center gap-2 px-3 py-2 hover:bg-muted cursor-pointer text-sm select-none"
+                                >
+                                  <Checkbox
+                                    checked={formData.sectors.includes(sector)}
+                                    onCheckedChange={() => toggleSector(sector)}
+                                  />
+                                  {sector}
+                                </label>
+                              ))}
+                          </div>
+                        )}
+                      </div>
                       {formData.sectors.length > 0 && (
-                        <div className="border-t pt-2 mt-1">
-                          <p className="text-xs text-muted-foreground px-2">
+                        <div className="border-t px-3 py-2">
+                          <p className="text-xs text-muted-foreground">
                             {formData.sectors.length} selected → {formData.sectors.length} template{formData.sectors.length > 1 ? "s" : ""} will be created
                           </p>
                         </div>

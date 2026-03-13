@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/app-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
 import { TemplateMultiSelect } from "@/components/ui/template-multi-select";
@@ -32,6 +30,7 @@ import {
   Users,
   Zap,
   CheckCircle,
+  Pencil,
 } from "lucide-react";
 import {
   automationService,
@@ -63,21 +62,26 @@ const frequencyLabels: Record<string, string> = {
 export default function Automation() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<AutomationSchedule | null>(null);
   const [runningScheduleId, setRunningScheduleId] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
 
   const [schedules, setSchedules] = useState<AutomationSchedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [_isSaving, setIsSaving] = useState(false);
   const [stats, setStats] = useState<AnalyticsResponse | null>(null);
   const [templates, setTemplates] = useState<FollowupTemplate[]>([]);
 
   const [formName, setFormName] = useState("");
   const [formChannel, setFormChannel] = useState("email");
   const [formFrequency, setFormFrequency] = useState("daily");
-  const [formTime, setFormTime] = useState("09:00");
+  const [formTime, setFormTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  });
   const [formDays, setFormDays] = useState("");
-  const [formTemplateId, setFormTemplateId] = useState("");
+  const [_formTemplateId, setFormTemplateId] = useState("");
   const [formTemplateIds, setFormTemplateIds] = useState<string[]>([]);
   const [formSmsMessage, setFormSmsMessage] = useState("");
   const [formWhatsappMessage, setFormWhatsappMessage] = useState("");
@@ -161,6 +165,49 @@ export default function Automation() {
       fetchData();
     } catch (error) {
       toast({ title: "Failed to create schedule", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function openEdit(schedule: AutomationSchedule) {
+    setEditingSchedule(schedule);
+    setFormName(schedule.name);
+    setFormChannel(schedule.channel);
+    setFormFrequency(schedule.frequency);
+    setFormTime(schedule.time);
+    setFormDays(schedule.days ?? "");
+    setFormTemplateIds(schedule.templateIds ?? []);
+    setFormSmsMessage(schedule.smsMessage ?? "");
+    setFormWhatsappMessage(schedule.whatsappMessage ?? "");
+    setEditDialogOpen(true);
+  }
+
+  async function handleUpdate() {
+    if (!editingSchedule) return;
+    if (!formName.trim()) {
+      toast({ title: "Please enter a schedule name", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const updated = await automationService.updateSchedule(editingSchedule.id, {
+        name: formName,
+        channel: formChannel,
+        frequency: formFrequency,
+        time: formTime,
+        days: formFrequency === "custom" ? formDays : undefined,
+        templateIds: formChannel === "email" && formTemplateIds.length > 0 ? formTemplateIds : undefined,
+        smsMessage: formChannel === "sms" ? formSmsMessage : undefined,
+        whatsappMessage: formChannel === "whatsapp" ? formWhatsappMessage : undefined,
+      });
+      setSchedules(schedules.map((s) => (s.id === updated.id ? updated : s)));
+      toast({ title: "Schedule updated" });
+      setEditDialogOpen(false);
+      setEditingSchedule(null);
+      resetForm();
+    } catch {
+      toast({ title: "Failed to update schedule", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -308,12 +355,17 @@ export default function Automation() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Time</Label>
-                    <Input
-                      type="time"
-                      value={formTime}
-                      onChange={(e) => setFormTime(e.target.value)}
-                      data-testid="input-schedule-time"
-                    />
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                      <Input
+                        type="time"
+                        value={formTime}
+                        onChange={(e) => setFormTime(e.target.value)}
+                        data-testid="input-schedule-time"
+                        className="pl-9"
+                        style={{ colorScheme: "light" }}
+                      />
+                    </div>
                   </div>
                   {formFrequency === "custom" && (
                     <div>
@@ -507,6 +559,14 @@ export default function Automation() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          onClick={() => openEdit(schedule)}
+                          data-testid={`button-edit-${schedule.id}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => deleteSchedule(schedule.id)}
                           data-testid={`button-delete-${schedule.id}`}
@@ -522,6 +582,123 @@ export default function Automation() {
           )}
         </div>
       </div>
+
+      {/* Edit Schedule Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(o) => { setEditDialogOpen(o); if (!o) { setEditingSchedule(null); resetForm(); } }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Schedule</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label>Schedule Name</Label>
+              <Input
+                placeholder="e.g., Daily Email Followup"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Channel</Label>
+                <Select value={formChannel} onValueChange={setFormChannel}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="sms">SMS</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Frequency</Label>
+                <Select value={formFrequency} onValueChange={setFormFrequency}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Time</Label>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                  <Input
+                    type="time"
+                    value={formTime}
+                    onChange={(e) => setFormTime(e.target.value)}
+                    className="pl-9"
+                    style={{ colorScheme: "light" }}
+                  />
+                </div>
+              </div>
+              {formFrequency === "custom" && (
+                <div>
+                  <Label>Days (comma-separated)</Label>
+                  <Input
+                    placeholder="Mon, Wed, Fri"
+                    value={formDays}
+                    onChange={(e) => setFormDays(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {formChannel === "email" && (
+              <div>
+                <Label className="mb-1.5 block">Email Templates</Label>
+                <TemplateMultiSelect
+                  templates={templates}
+                  selectedIds={formTemplateIds}
+                  onChange={setFormTemplateIds}
+                  placeholder="Auto-select by sector"
+                  hint={
+                    formTemplateIds.length === 0
+                      ? "No selection — auto-picks the template matching each lead's sector"
+                      : "Each lead receives a randomly picked template from the selection"
+                  }
+                />
+              </div>
+            )}
+
+            {formChannel === "sms" && (
+              <div>
+                <Label>SMS Message Template</Label>
+                <Textarea
+                  placeholder="Hi {{name}}, following up regarding {{company}}..."
+                  value={formSmsMessage}
+                  onChange={(e) => setFormSmsMessage(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Use {"{{name}}"} and {"{{company}}"} for personalization</p>
+              </div>
+            )}
+
+            {formChannel === "whatsapp" && (
+              <div>
+                <Label>WhatsApp Message Template</Label>
+                <Textarea
+                  placeholder="Hi {{name}}, following up regarding {{company}}..."
+                  value={formWhatsappMessage}
+                  onChange={(e) => setFormWhatsappMessage(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Use {"{{name}}"} and {"{{company}}"} for personalization</p>
+              </div>
+            )}
+
+            <Button className="w-full" onClick={handleUpdate}>
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
