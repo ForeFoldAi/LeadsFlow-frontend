@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
 import { TemplateMultiSelect } from "@/components/ui/template-multi-select";
+import { TimePicker } from "@/components/ui/time-picker";
 import {
   Calendar,
   Clock,
@@ -355,17 +356,11 @@ export default function Automation() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Time</Label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                      <Input
-                        type="time"
-                        value={formTime}
-                        onChange={(e) => setFormTime(e.target.value)}
-                        data-testid="input-schedule-time"
-                        className="pl-9"
-                        style={{ colorScheme: "light" }}
-                      />
-                    </div>
+                    <TimePicker
+                      value={formTime}
+                      onChange={setFormTime}
+                      data-testid="input-schedule-time"
+                    />
                   </div>
                   {formFrequency === "custom" && (
                     <div>
@@ -627,16 +622,7 @@ export default function Automation() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Time</Label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                  <Input
-                    type="time"
-                    value={formTime}
-                    onChange={(e) => setFormTime(e.target.value)}
-                    className="pl-9"
-                    style={{ colorScheme: "light" }}
-                  />
-                </div>
+                <TimePicker value={formTime} onChange={setFormTime} />
               </div>
               {formFrequency === "custom" && (
                 <div>
