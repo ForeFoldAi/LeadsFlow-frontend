@@ -129,17 +129,19 @@ export default function SendEmail() {
   const [currentLeadIndex, setCurrentLeadIndex] = useState(0);
   const [sectors, setSectors] = useState<string[]>([]);
   const [selectedSector, setSelectedSector] = useState("all");
+  const [cities, setCities] = useState<string[]>([]);
+  const [selectedCity, setSelectedCity] = useState("all");
 
   // Debounced search effect
   useEffect(() => {
     const timer = setTimeout(() => {
       setSelectedLeadIds([]);
-      fetchData(searchTerm, selectedSector);
+      fetchData(searchTerm, selectedSector, selectedCity);
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedSector]);
+  }, [searchTerm, selectedSector, selectedCity]);
 
-  const fetchData = async (search: string, sector: string = "all") => {
+  const fetchData = async (search: string, sector: string = "all", city: string = "all") => {
     setIsLoading(true);
     try {
       const query: any = {
@@ -147,19 +149,20 @@ export default function SendEmail() {
         search: search || undefined
       };
 
-      if (sector !== "all") {
-        query.sector = sector;
-      }
+      if (sector !== "all") query.sector = sector;
+      if (city !== "all") query.city = city;
 
-      const [leadsData, templatesData, sectorsData] = await Promise.all([
+      const [leadsData, templatesData, sectorsData, citiesData] = await Promise.all([
         leadsService.getAllLeads(query),
         templatesService.getAllTemplates(),
-        leadsService.getSectors()
+        leadsService.getSectors(),
+        leadsService.getCities(),
       ]);
 
       setLeads(leadsData.data || []);
       setTemplates(templatesData || []);
       setSectors(sectorsData || []);
+      setCities(citiesData || []);
     } catch (error) {
       toast({ title: "Failed to load data", variant: "destructive" });
     } finally {
@@ -395,11 +398,22 @@ export default function SendEmail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-stretch">
           <div className="flex flex-col h-full">
             <Card className="flex-1 flex flex-col">
-              <CardHeader className="flex flex-row items-center justify-between py-3">
-                <CardTitle className="text-base">Select Leads</CardTitle>
-                <div className="w-[180px]">
+              <CardHeader className="flex flex-row items-center justify-between py-3 gap-2 flex-wrap">
+                <CardTitle className="text-base shrink-0">Select Leads</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select value={selectedCity} onValueChange={setSelectedCity}>
+                    <SelectTrigger className="h-8 text-xs w-[140px]">
+                      <SelectValue placeholder="All Cities" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Cities</SelectItem>
+                      {cities.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Select value={selectedSector} onValueChange={setSelectedSector}>
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-8 text-xs w-[140px]">
                       <SelectValue placeholder="All Sectors" />
                     </SelectTrigger>
                     <SelectContent>
@@ -462,7 +476,11 @@ export default function SendEmail() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium truncate">{lead.name}</p>
+                              {lead.companyName && (
+                                <p className="text-[11px] text-muted-foreground truncate">{lead.companyName}</p>
+                              )}
                               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                {lead.city && <span className="truncate max-w-[80px]">{lead.city}</span>}
                                 {lead.email && <span className="flex items-center gap-0.5"><Mail className="h-2.5 w-2.5" /> Email</span>}
                                 {lead.phoneNumber && <span className="flex items-center gap-0.5"><Phone className="h-2.5 w-2.5" /> Phone</span>}
                               </div>

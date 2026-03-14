@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/app-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,15 +117,53 @@ export default function Templates() {
     setIsSaving(true);
     try {
       if (editTemplate) {
+        // Always update the template being edited (keep its original sector if not in new selection)
+        const primarySector = formData.sectors.includes(editTemplate.sector)
+          ? editTemplate.sector
+          : formData.sectors[0];
         await templatesService.updateTemplate(editTemplate.id, {
           name: formData.name,
-          sector: formData.sectors[0],
+          sector: primarySector,
           subject: formData.subject,
           body: formData.body,
           type: formData.type,
           category: formData.category,
         });
-        toast({ title: "Template updated successfully" });
+        // For every other selected sector, find template with same category in that sector and update it
+        const otherSectors = formData.sectors.filter((s) => s !== primarySector);
+        if (otherSectors.length > 0) {
+          const normalize = (s: string) => (s ?? "").trim().toLowerCase();
+          await Promise.all(
+            otherSectors.map((sector) => {
+              const existing = templates.find(
+                (t) =>
+                  normalize(t.sector) === normalize(sector) &&
+                  normalize(t.category) === normalize(formData.category) &&
+                  t.id !== editTemplate.id
+              );
+              if (existing) {
+                return templatesService.updateTemplate(existing.id, {
+                  name: formData.name,
+                  sector: existing.sector, // keep original sector casing
+                  subject: formData.subject,
+                  body: formData.body,
+                  type: formData.type,
+                  category: formData.category,
+                });
+              } else {
+                return templatesService.createTemplate({
+                  name: formData.name,
+                  sector,
+                  subject: formData.subject,
+                  body: formData.body,
+                  type: formData.type,
+                  category: formData.category,
+                });
+              }
+            })
+          );
+        }
+        toast({ title: formData.sectors.length > 1 ? `Updated ${formData.sectors.length} templates` : "Template updated" });
         setEditTemplate(null);
       } else if (formData.sectors.length > 1) {
         await templatesService.bulkCreateTemplates({
@@ -152,7 +190,8 @@ export default function Templates() {
       }
       setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
       fetchData();
-    } catch {
+    } catch (err) {
+      console.error("handleSave error:", err);
       toast({ title: "Failed to save template", variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -217,33 +256,35 @@ export default function Templates() {
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{sector}</h2>
                     <Badge variant="outline" className="text-xs">{sectorTemplates.length}</Badge>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {sectorTemplates.map((template) => (
                       <Card key={template.id} className="hover-elevate" data-testid={`card-template-${template.id}`}>
-                        <CardHeader className="pb-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <CardTitle className="text-sm font-medium">{template.name}</CardTitle>
-                            <div className="flex items-center gap-1">
-                              <Button size="icon" variant="ghost" onClick={() => setPreviewTemplate(template)} data-testid={`button-preview-${template.id}`}>
-                                <Eye className="h-4 w-4" />
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between gap-1 mb-1.5">
+                            <p className="text-sm font-semibold leading-tight line-clamp-1 flex-1">{template.name}</p>
+                            <div className="flex items-center gap-0 shrink-0 -mr-1">
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setPreviewTemplate(template)} data-testid={`button-preview-${template.id}`}>
+                                <Eye className="h-3.5 w-3.5" />
                               </Button>
-                              <Button size="icon" variant="ghost" onClick={() => openEdit(template)} data-testid={`button-edit-${template.id}`}>
-                                <Edit className="h-4 w-4" />
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openEdit(template)} data-testid={`button-edit-${template.id}`}>
+                                <Edit className="h-3.5 w-3.5" />
                               </Button>
-                              <Button size="icon" variant="ghost" onClick={() => handleDelete(template.id)} data-testid={`button-delete-${template.id}`}>
-                                <Trash2 className="h-4 w-4" />
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleDelete(template.id)} data-testid={`button-delete-${template.id}`}>
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex items-center gap-2 mb-3 flex-wrap">
-                            <Badge variant="secondary" className="text-xs">{template.sector}</Badge>
-                            <Badge variant="outline" className="text-xs">{TEMPLATE_CATEGORY_LABELS[template.category] ?? template.category}</Badge>
+                          <p className="text-[11px] text-muted-foreground line-clamp-1 mb-2">{template.subject}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{template.sector}</Badge>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium
+                              ${template.category === "general" ? "bg-slate-100 text-slate-600" :
+                                template.category === "focused_template" ? "bg-blue-100 text-blue-700" :
+                                template.category === "followup_template" ? "bg-amber-100 text-amber-700" :
+                                "bg-muted text-muted-foreground"}`}>
+                              {TEMPLATE_CATEGORY_LABELS[template.category] ?? template.category}
+                            </span>
                           </div>
-                          <p className="text-xs text-muted-foreground mb-1">Subject:</p>
-                          <p className="text-sm mb-2 font-medium">{template.subject}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-3" dangerouslySetInnerHTML={{ __html: template.body.replace(/<[^>]*>/g, ' ').slice(0, 200) }} />
                         </CardContent>
                       </Card>
                     ))}

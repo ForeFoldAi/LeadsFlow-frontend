@@ -1,4 +1,3 @@
-import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TimePickerProps {
@@ -6,9 +5,6 @@ interface TimePickerProps {
   onChange: (value: string) => void;
   className?: string;
 }
-
-const HOURS_12 = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")); // "01".."12"
-const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));      // "00".."59"
 
 export function TimePicker({ value, onChange, className }: TimePickerProps) {
   const [rawHH, rawMM] = (value || "09:00").split(":");
@@ -20,59 +16,75 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
 
   const emit = (h12: string, m: string, ap: string) => {
     let h24 = parseInt(h12, 10);
-    if (ap === "AM") {
-      h24 = h24 === 12 ? 0 : h24;
-    } else {
-      h24 = h24 === 12 ? 12 : h24 + 12;
-    }
+    h24 = ap === "AM" ? (h24 === 12 ? 0 : h24) : (h24 === 12 ? 12 : h24 + 12);
     onChange(`${String(h24).padStart(2, "0")}:${m}`);
   };
 
-  const selectCls =
-    "bg-transparent text-sm font-medium outline-none cursor-pointer appearance-none text-center";
+  const handleHour = (raw: string) => {
+    const n = parseInt(raw, 10);
+    if (isNaN(n)) return;
+    const clamped = Math.max(1, Math.min(12, n));
+    emit(String(clamped).padStart(2, "0"), minute, ampm);
+  };
+
+  const handleMinute = (raw: string) => {
+    const n = parseInt(raw, 10);
+    if (isNaN(n)) return;
+    const clamped = Math.max(0, Math.min(59, n));
+    emit(hour12, String(clamped).padStart(2, "0"), ampm);
+  };
+
+  const inputCls =
+    "w-10 text-center text-sm font-semibold bg-transparent outline-none border-0 focus:bg-muted/50 rounded py-0.5 transition-colors";
 
   return (
     <div
       className={cn(
-        "flex items-center gap-1 border rounded-md px-3 h-10 bg-background select-none",
+        "flex items-center border rounded-md h-10 px-2 gap-1 bg-background w-full",
         className
       )}
     >
-      <Clock className="h-4 w-4 text-muted-foreground shrink-0 mr-1" />
-
-      {/* Hour */}
-      <select
+      <input
+        type="number"
+        min={1}
+        max={12}
         value={hour12}
-        onChange={(e) => emit(e.target.value, minute, ampm)}
-        className={cn(selectCls, "w-8")}
-      >
-        {HOURS_12.map((h) => (
-          <option key={h} value={h}>{h}</option>
-        ))}
-      </select>
-
-      <span className="text-muted-foreground font-semibold px-0.5">:</span>
-
-      {/* Minute */}
-      <select
+        onChange={(e) => handleHour(e.target.value)}
+        className={inputCls}
+        style={{ MozAppearance: "textfield" } as any}
+      />
+      <span className="text-muted-foreground font-bold select-none">:</span>
+      <input
+        type="number"
+        min={0}
+        max={59}
         value={minute}
-        onChange={(e) => emit(hour12, e.target.value, ampm)}
-        className={cn(selectCls, "w-8")}
-      >
-        {MINUTES.map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
-
-      {/* AM / PM */}
-      <select
-        value={ampm}
-        onChange={(e) => emit(hour12, minute, e.target.value)}
-        className={cn(selectCls, "w-10 ml-1 text-muted-foreground")}
-      >
-        <option value="AM">AM</option>
-        <option value="PM">PM</option>
-      </select>
+        onChange={(e) => handleMinute(e.target.value)}
+        className={inputCls}
+        style={{ MozAppearance: "textfield" } as any}
+      />
+      <div className="ml-1 flex items-center border rounded overflow-hidden text-xs font-semibold">
+        <button
+          type="button"
+          onClick={() => emit(hour12, minute, "AM")}
+          className={cn(
+            "px-2 py-1 transition-colors",
+            ampm === "AM" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+          )}
+        >
+          AM
+        </button>
+        <button
+          type="button"
+          onClick={() => emit(hour12, minute, "PM")}
+          className={cn(
+            "px-2 py-1 transition-colors",
+            ampm === "PM" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+          )}
+        >
+          PM
+        </button>
+      </div>
     </div>
   );
 }
