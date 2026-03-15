@@ -2,6 +2,33 @@ import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 
 import { Bold, Italic, Underline, Strikethrough, List, ListOrdered, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Convert an image File/Blob to a base64 data URI so it survives outside the browser session. */
+function fileToDataUri(file: File | Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Insert an <img> at the current cursor position inside a contentEditable element. */
+function insertImageAtCursor(dataUri: string) {
+  const img = document.createElement("img");
+  img.src = dataUri;
+  img.style.maxWidth = "100%";
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(img);
+    range.setStartAfter(img);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
 interface RichTextEditorProps {
   value: string;
   onChange: (html: string) => void;
@@ -84,6 +111,29 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       focus: () => editorRef.current?.focus(),
     }), [handleInput]);
 
+    const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLDivElement>) => {
+      const items = Array.from(e.clipboardData.items);
+      const imageItem = items.find((item) => item.type.startsWith("image/"));
+      if (!imageItem) return;
+      e.preventDefault();
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      const dataUri = await fileToDataUri(file);
+      editorRef.current?.focus();
+      insertImageAtCursor(dataUri);
+      handleInput();
+    }, [handleInput]);
+
+    const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+      const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+      if (!files.length) return;
+      e.preventDefault();
+      const dataUri = await fileToDataUri(files[0]);
+      editorRef.current?.focus();
+      insertImageAtCursor(dataUri);
+      handleInput();
+    }, [handleInput]);
+
     const toolbarBtn = (onClick: () => void, icon: React.ReactNode, title: string, active = false) => (
       <button
         type="button"
@@ -145,6 +195,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           {toolbarBtn(() => exec("justifyLeft"), <AlignLeft className="h-3.5 w-3.5" />, "Align Left")}
           {toolbarBtn(() => exec("justifyCenter"), <AlignCenter className="h-3.5 w-3.5" />, "Align Center")}
           {toolbarBtn(() => exec("justifyRight"), <AlignRight className="h-3.5 w-3.5" />, "Align Right")}
+
         </div>
 
         {/* Editable area */}
@@ -153,6 +204,8 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           contentEditable
           suppressContentEditableWarning
           onInput={handleInput}
+          onPaste={handlePaste}
+          onDrop={handleDrop}
           style={{ minHeight }}
           data-placeholder={placeholder}
           className={cn(
