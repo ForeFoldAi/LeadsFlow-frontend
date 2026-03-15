@@ -82,16 +82,19 @@ export default function Templates() {
     }
   };
 
+  const groupKey = (t: FollowupTemplate) =>
+    t.sectors && t.sectors.length > 1 ? "Multiple sectors" : (t.sector ?? "Unassigned");
   const groupedBySector = templates.reduce((acc, t) => {
-    if (!acc[t.sector]) acc[t.sector] = [];
-    acc[t.sector].push(t);
+    const key = groupKey(t);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(t);
     return acc;
   }, {} as Record<string, FollowupTemplate[]>);
 
   const openEdit = (t: FollowupTemplate) => {
     setFormData({
       name: t.name,
-      sectors: [t.sector],
+      sectors: t.sectors?.length ? [...t.sectors] : t.sector ? [t.sector] : [],
       subject: t.subject,
       body: t.body,
       type: t.type || "email",
@@ -117,56 +120,19 @@ export default function Templates() {
     setIsSaving(true);
     try {
       if (editTemplate) {
-        // Always update the template being edited (keep its original sector if not in new selection)
-        const primarySector = formData.sectors.includes(editTemplate.sector)
-          ? editTemplate.sector
-          : formData.sectors[0];
         await templatesService.updateTemplate(editTemplate.id, {
           name: formData.name,
-          sector: primarySector,
           subject: formData.subject,
           body: formData.body,
           type: formData.type,
           category: formData.category,
+          sector: formData.sectors[0],
+          sectors: formData.sectors.length > 1 ? formData.sectors : [formData.sectors[0]],
         });
-        // For every other selected sector, find template with same category in that sector and update it
-        const otherSectors = formData.sectors.filter((s) => s !== primarySector);
-        if (otherSectors.length > 0) {
-          const normalize = (s: string) => (s ?? "").trim().toLowerCase();
-          await Promise.all(
-            otherSectors.map((sector) => {
-              const existing = templates.find(
-                (t) =>
-                  normalize(t.sector) === normalize(sector) &&
-                  normalize(t.category) === normalize(formData.category) &&
-                  t.id !== editTemplate.id
-              );
-              if (existing) {
-                return templatesService.updateTemplate(existing.id, {
-                  name: formData.name,
-                  sector: existing.sector, // keep original sector casing
-                  subject: formData.subject,
-                  body: formData.body,
-                  type: formData.type,
-                  category: formData.category,
-                });
-              } else {
-                return templatesService.createTemplate({
-                  name: formData.name,
-                  sector,
-                  subject: formData.subject,
-                  body: formData.body,
-                  type: formData.type,
-                  category: formData.category,
-                });
-              }
-            })
-          );
-        }
-        toast({ title: formData.sectors.length > 1 ? `Updated ${formData.sectors.length} templates` : "Template updated" });
+        toast({ title: "Template updated" });
         setEditTemplate(null);
       } else if (formData.sectors.length > 1) {
-        await templatesService.bulkCreateTemplates({
+        await templatesService.createTemplate({
           name: formData.name,
           sectors: formData.sectors,
           subject: formData.subject,
@@ -174,7 +140,7 @@ export default function Templates() {
           type: formData.type,
           category: formData.category,
         });
-        toast({ title: `${formData.sectors.length} templates created (one per sector)` });
+        toast({ title: "Template created (1 template for all selected sectors)" });
         setIsCreateOpen(false);
       } else {
         await templatesService.createTemplate({
@@ -276,7 +242,6 @@ export default function Templates() {
                           </div>
                           <p className="text-[11px] text-muted-foreground line-clamp-1 mb-2">{template.subject}</p>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{template.sector}</Badge>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium
                               ${template.category === "general" ? "bg-slate-100 text-slate-600" :
                                 template.category === "focused_template" ? "bg-blue-100 text-blue-700" :
@@ -284,6 +249,11 @@ export default function Templates() {
                                 "bg-muted text-muted-foreground"}`}>
                               {TEMPLATE_CATEGORY_LABELS[template.category] ?? template.category}
                             </span>
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 max-w-full" title={template.sectors?.join(", ") ?? template.sector}>
+                              {template.sectors?.length
+                                ? template.sectors.join(", ")
+                                : template.sector ?? "—"}
+                            </Badge>
                           </div>
                         </CardContent>
                       </Card>
@@ -372,7 +342,7 @@ export default function Templates() {
                       {formData.sectors.length > 0 && (
                         <div className="border-t px-3 py-2">
                           <p className="text-xs text-muted-foreground">
-                            {formData.sectors.length} selected → {formData.sectors.length} template{formData.sectors.length > 1 ? "s" : ""} will be created
+                            {formData.sectors.length} selected → 1 template will be created for all sectors
                           </p>
                         </div>
                       )}
@@ -446,7 +416,7 @@ export default function Templates() {
                   ? "Saving..."
                   : editTemplate
                   ? "Save Changes"
-                  : `Create${formData.sectors.length > 1 ? ` (${formData.sectors.length})` : ""}`}
+                  : "Create"}
               </Button>
             </DialogFooter>
           </DialogContent>

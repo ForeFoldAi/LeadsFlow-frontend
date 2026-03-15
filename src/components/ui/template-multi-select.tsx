@@ -37,11 +37,13 @@ export function TemplateMultiSelect({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return q
+            return q
       ? templates.filter(
-          (t) =>
-            t.name.toLowerCase().includes(q) ||
-            (t.sector || "").toLowerCase().includes(q)
+          (t) => {
+            const sectors = t.sectors ?? (t.sector ? [t.sector] : []);
+            const sectorMatch = sectors.some((s) => s.toLowerCase().includes(q));
+            return t.name.toLowerCase().includes(q) || sectorMatch;
+          }
         )
       : templates;
   }, [templates, search]);
@@ -117,9 +119,15 @@ export function TemplateMultiSelect({
                     <div className="min-w-0 flex-1">
                       <p className="text-sm truncate">{t.name}</p>
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                        {t.sector && (
-                          <span className="text-[10px] text-muted-foreground">{t.sector}</span>
-                        )}
+                        {(() => {
+                          const sectorList = t.sectors?.length ? t.sectors : (t.sector ? [t.sector] : []);
+                          if (sectorList.length === 0) return null;
+                          return (
+                            <span className="text-[10px] text-muted-foreground" title={sectorList.join(", ")}>
+                              {sectorList.join(", ")}
+                            </span>
+                          );
+                        })()}
                         {catLabel && (
                           <span className={cn(
                             "text-[10px] px-1.5 py-0.5 rounded-full font-medium",

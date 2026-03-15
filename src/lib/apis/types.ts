@@ -656,8 +656,8 @@ export interface GetLeadsQuery {
   search?: string;
   status?: string | string[];
   category?: string;
-  city?: string;
-  sector?: string;
+  city?: string | string[];
+  sector?: string | string[];
   page?: number;
   limit?: number;
   leadStatus?: LeadStatus;
@@ -1001,6 +1001,8 @@ export interface FollowupTemplate {
   id: string;
   name: string;
   sector: string;
+  /** When set, this template applies to all listed sectors (single template for multiple sectors). */
+  sectors?: string[];
   subject: string;
   body: string;
   type: string;
@@ -1013,7 +1015,8 @@ export interface FollowupTemplate {
 
 export interface CreateTemplateDto {
   name: string;
-  sector: string;
+  sector?: string;
+  sectors?: string[];
   subject: string;
   body: string;
   type: string;
@@ -1032,6 +1035,7 @@ export interface BulkCreateTemplateDto {
 export interface UpdateTemplateDto {
   name?: string;
   sector?: string;
+  sectors?: string[];
   subject?: string;
   body?: string;
   type?: string;

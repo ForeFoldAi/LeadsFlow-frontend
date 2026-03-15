@@ -7,13 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import RichTextEditor, { RichTextEditorRef } from "@/components/ui/rich-text-editor";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
@@ -128,20 +122,21 @@ export default function SendEmail() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [currentLeadIndex, setCurrentLeadIndex] = useState(0);
   const [sectors, setSectors] = useState<string[]>([]);
-  const [selectedSector, setSelectedSector] = useState("all");
+  const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
-  const [selectedCity, setSelectedCity] = useState("all");
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
 
   // Debounced search effect
   useEffect(() => {
     const timer = setTimeout(() => {
       setSelectedLeadIds([]);
-      fetchData(searchTerm, selectedSector, selectedCity);
+      fetchData(searchTerm, selectedSectors, selectedCities);
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedSector, selectedCity]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedSectors, selectedCities]);
 
-  const fetchData = async (search: string, sector: string = "all", city: string = "all") => {
+  const fetchData = async (search: string, sectors: string[] = [], cities: string[] = []) => {
     setIsLoading(true);
     try {
       const query: any = {
@@ -149,8 +144,8 @@ export default function SendEmail() {
         search: search || undefined
       };
 
-      if (sector !== "all") query.sector = sector;
-      if (city !== "all") query.city = city;
+      if (sectors.length > 0) query.sector = sectors;
+      if (cities.length > 0) query.city = cities;
 
       const [leadsData, templatesData, sectorsData, citiesData] = await Promise.all([
         leadsService.getAllLeads(query),
@@ -194,25 +189,29 @@ export default function SendEmail() {
   // All unique sectors from selected leads
   const selectedLeadSectors = Array.from(new Set(selectedLeads.map(l => l.sector).filter(Boolean)));
 
+  const templateSectors = (t: FollowupTemplate): string[] =>
+    t.sectors?.length ? t.sectors : (t.sector ? [t.sector] : []);
+
   // Templates matching any selected lead's sector (or show all if no leads selected)
   const availableTemplates = selectedLeads.length > 0
-    ? templates.filter((t) =>
-        !t.sector ||
-        selectedLeadSectors.includes(t.sector) ||
-        t.sector.toLowerCase() === 'general'
-      )
+    ? templates.filter((t) => {
+        const sectors = templateSectors(t);
+        if (sectors.length === 0) return true;
+        return sectors.some((s) => selectedLeadSectors.includes(s)) || (t.sector?.toLowerCase() === 'general');
+      })
     : templates;
 
   // For a given lead, find the best matching template from the selected ones
   const getTemplateForLead = (lead: LeadResponse): FollowupTemplate | undefined => {
     if (selectedTemplateIds.length === 0) return undefined;
-    // First try to find a template matching the lead's sector
-    const sectorMatch = selectedTemplateIds
-      .map(id => templates.find(t => t.id === id))
-      .find(t => t && t.sector === lead.sector);
+    const selectedTemplates = selectedTemplateIds
+      .map((id) => templates.find((t) => t.id === id))
+      .filter(Boolean) as FollowupTemplate[];
+    const sectorMatch = selectedTemplates.find((t) =>
+      templateSectors(t).includes(lead.sector ?? '')
+    );
     if (sectorMatch) return sectorMatch;
-    // Fallback: first selected template
-    return templates.find(t => t.id === selectedTemplateIds[0]);
+    return selectedTemplates[0];
   };
 
   const handleSendEmail = async () => {
@@ -401,28 +400,20 @@ export default function SendEmail() {
               <CardHeader className="flex flex-row items-center justify-between py-3 gap-2 flex-wrap">
                 <CardTitle className="text-base shrink-0">Select Leads</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Select value={selectedCity} onValueChange={setSelectedCity}>
-                    <SelectTrigger className="h-8 text-xs w-[140px]">
-                      <SelectValue placeholder="All Cities" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Cities</SelectItem>
-                      {cities.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={selectedSector} onValueChange={setSelectedSector}>
-                    <SelectTrigger className="h-8 text-xs w-[140px]">
-                      <SelectValue placeholder="All Sectors" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Sectors</SelectItem>
-                      {sectors.map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelect
+                    options={cities}
+                    value={selectedCities}
+                    onChange={setSelectedCities}
+                    placeholder="All Cities"
+                    triggerClassName="w-[140px]"
+                  />
+                  <MultiSelect
+                    options={sectors}
+                    value={selectedSectors}
+                    onChange={setSelectedSectors}
+                    placeholder="All Sectors"
+                    triggerClassName="w-[140px]"
+                  />
                 </div>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col min-h-0 space-y-3">
