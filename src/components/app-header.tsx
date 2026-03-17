@@ -227,7 +227,7 @@ export default function AppHeader() {
           <div className="flex items-center space-x-2 md:space-x-4 min-w-0">
             <div className="flex-shrink-0">
               <div className="flex items-center space-x-2 md:space-x-3">
-                <div className="relative flex-shrink-0">
+                <div className="relative flex-shrink-0 cursor-pointer" onClick={() => setLocation("/")}>
                   <img
                     src="/logo.png"
                     alt="ForeFold AI Logo"

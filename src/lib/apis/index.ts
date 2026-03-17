@@ -17,6 +17,16 @@ export { default as notificationsService } from './notifications.service';
 export { default as automationService } from './automation.service';
 export { default as templatesService } from './templates.service';
 export { default as communicationService } from './communication.service';
+export { default as leadGeneratorService } from './lead-generator.service';
+export type {
+  GenerateLeadsRequest,
+  GenerateResponse,
+  LeadResult,
+  ScrapeRequest,
+  JobRead,
+  LeadRead,
+  LeadListResponse,
+} from './lead-generator.service';
 
 // Export all types
 export * from './types';
