@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -73,16 +73,15 @@ function Router() {
 }
 
 function App() {
-  // Web-push notifications are handled by the service worker
-  // The service worker will show notifications even when the app is in the foreground
-  // No additional foreground message handling needed
+  const [location] = useLocation();
+  const hideChat = location === "/login" || location === "/signup";
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Router />
-        <FloatingLogo />
+        {!hideChat && <FloatingLogo />}
       </TooltipProvider>
     </QueryClientProvider>
   );
