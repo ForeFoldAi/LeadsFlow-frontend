@@ -18,6 +18,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
 import RichTextEditor, { RichTextEditorRef } from "@/components/ui/rich-text-editor";
@@ -249,11 +250,24 @@ export default function Templates() {
                                 "bg-muted text-muted-foreground"}`}>
                               {TEMPLATE_CATEGORY_LABELS[template.category] ?? template.category}
                             </span>
-                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 max-w-full" title={template.sectors?.join(", ") ?? template.sector}>
-                              {template.sectors?.length
-                                ? template.sectors.join(", ")
-                                : template.sector ?? "—"}
-                            </Badge>
+                            {(template.sectors?.length ?? 0) > 1 ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 cursor-default">
+                                      {template.sectors!.length} sectors
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom" className="max-w-[260px] text-xs">
+                                    {template.sectors!.join(", ")}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px] h-4 px-1.5 truncate max-w-[140px]">
+                                {template.sectors?.[0] ?? template.sector ?? "—"}
+                              </Badge>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
