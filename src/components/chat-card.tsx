@@ -387,7 +387,7 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
     setStep({ step: "generating", sector, city, country, sessionId: "" });
 
     try {
-      const res = await leadGeneratorService.startGeneration({ sector, city, country });
+      const res = await leadGeneratorService.startGeneration({ sector, city, country, sources: ['apify'] });
       setStep({ step: "generating", sector, city, country, sessionId: res.session_id });
 
       pollRef.current = setInterval(async () => {

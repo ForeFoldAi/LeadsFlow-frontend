@@ -6,15 +6,15 @@ export default function FloatingLogo() {
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-24 md:bottom-6 right-6 z-50">
         <div className="relative">
           <button
             onClick={() => setIsChatOpen(!isChatOpen)}
             className="transition-transform duration-300 hover:scale-110 active:scale-95"
           >
             <img
-              src="/logo.png"
-              alt="Logo"
+              src="/chat.gif"
+              alt="Chat"
               className="w-12 h-12 md:w-16 md:h-16 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer"
             />
           </button>
