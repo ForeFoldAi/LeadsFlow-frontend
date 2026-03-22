@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 
 const leadGenAxios: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_LEAD_GENERATOR_URL || 'http://localhost:8000',
-  timeout: 60000,
+  timeout: 180000,
   headers: { 'Content-Type': 'application/json' },
 });
 

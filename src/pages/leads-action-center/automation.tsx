@@ -70,7 +70,7 @@ export default function Automation() {
 
   const [schedules, setSchedules] = useState<AutomationSchedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [_isSaving, setIsSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [stats, setStats] = useState<AnalyticsResponse | null>(null);
   const [templates, setTemplates] = useState<FollowupTemplate[]>([]);
 
@@ -141,6 +141,7 @@ export default function Automation() {
 
 
   async function handleCreate() {
+    if (isSaving) return;
     if (!formName.trim()) {
       toast({ title: "Please enter a schedule name", variant: "destructive" });
       return;
@@ -185,6 +186,7 @@ export default function Automation() {
   }
 
   async function handleUpdate() {
+    if (isSaving) return;
     if (!editingSchedule) return;
     if (!formName.trim()) {
       toast({ title: "Please enter a schedule name", variant: "destructive" });
@@ -235,6 +237,7 @@ export default function Automation() {
   }
 
   async function runSchedule(id: string) {
+    if (runningScheduleId === id) return;
     setRunningScheduleId(id);
     try {
       const result = await automationService.runSchedule(id);
@@ -428,9 +431,10 @@ export default function Automation() {
                 <Button
                   className="w-full"
                   onClick={handleCreate}
+                  disabled={isSaving}
                   data-testid="button-create-schedule"
                 >
-                  Create Schedule
+                  {isSaving ? "Creating..." : "Create Schedule"}
                 </Button>
               </div>
             </DialogContent>
@@ -679,8 +683,8 @@ export default function Automation() {
               </div>
             )}
 
-            <Button className="w-full" onClick={handleUpdate}>
-              Save Changes
+            <Button className="w-full" onClick={handleUpdate} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </DialogContent>
