@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface TimePickerProps {
@@ -9,29 +10,41 @@ interface TimePickerProps {
 export function TimePicker({ value, onChange, className }: TimePickerProps) {
   const [rawHH, rawMM] = (value || "09:00").split(":");
   const totalHour = parseInt(rawHH ?? "9", 10);
-  const minute = rawMM?.slice(0, 2) ?? "00";
   const isPM = totalHour >= 12;
   const hour12 = String(totalHour % 12 || 12).padStart(2, "0");
+  const minute = rawMM?.slice(0, 2) ?? "00";
   const ampm = isPM ? "PM" : "AM";
+
+  const [localHour, setLocalHour] = useState(hour12);
+  const [localMinute, setLocalMinute] = useState(minute);
+
+  // Sync local state when external value changes
+  useEffect(() => {
+    setLocalHour(hour12);
+    setLocalMinute(minute);
+  }, [value]);
 
   const emit = (h12: string, m: string, ap: string) => {
     let h24 = parseInt(h12, 10);
+    if (isNaN(h24)) h24 = 12;
     h24 = ap === "AM" ? (h24 === 12 ? 0 : h24) : (h24 === 12 ? 12 : h24 + 12);
     onChange(`${String(h24).padStart(2, "0")}:${m}`);
   };
 
-  const handleHour = (raw: string) => {
+  const commitHour = (raw: string) => {
     const n = parseInt(raw, 10);
-    if (isNaN(n)) return;
-    const clamped = Math.max(1, Math.min(12, n));
-    emit(String(clamped).padStart(2, "0"), minute, ampm);
+    const clamped = isNaN(n) ? 12 : Math.max(1, Math.min(12, n));
+    const padded = String(clamped).padStart(2, "0");
+    setLocalHour(padded);
+    emit(padded, localMinute, ampm);
   };
 
-  const handleMinute = (raw: string) => {
+  const commitMinute = (raw: string) => {
     const n = parseInt(raw, 10);
-    if (isNaN(n)) return;
-    const clamped = Math.max(0, Math.min(59, n));
-    emit(hour12, String(clamped).padStart(2, "0"), ampm);
+    const clamped = isNaN(n) ? 0 : Math.max(0, Math.min(59, n));
+    const padded = String(clamped).padStart(2, "0");
+    setLocalMinute(padded);
+    emit(localHour, padded, ampm);
   };
 
   const inputCls =
@@ -45,28 +58,41 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
       )}
     >
       <input
-        type="number"
-        min={1}
-        max={12}
-        value={hour12}
-        onChange={(e) => handleHour(e.target.value)}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        maxLength={2}
+        value={localHour}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+          setLocalHour(raw);
+          // auto-commit when 2 digits entered or value exceeds max
+          if (raw.length === 2 || parseInt(raw, 10) > 12) commitHour(raw);
+        }}
+        onBlur={(e) => commitHour(e.target.value)}
+        onFocus={(e) => e.target.select()}
         className={inputCls}
-        style={{ MozAppearance: "textfield" } as any}
       />
       <span className="text-muted-foreground font-bold select-none">:</span>
       <input
-        type="number"
-        min={0}
-        max={59}
-        value={minute}
-        onChange={(e) => handleMinute(e.target.value)}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        maxLength={2}
+        value={localMinute}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+          setLocalMinute(raw);
+          if (raw.length === 2 || parseInt(raw, 10) > 59) commitMinute(raw);
+        }}
+        onBlur={(e) => commitMinute(e.target.value)}
+        onFocus={(e) => e.target.select()}
         className={inputCls}
-        style={{ MozAppearance: "textfield" } as any}
       />
       <div className="ml-1 flex items-center border rounded overflow-hidden text-xs font-semibold">
         <button
           type="button"
-          onClick={() => emit(hour12, minute, "AM")}
+          onClick={() => emit(localHour, localMinute, "AM")}
           className={cn(
             "px-2 py-1 transition-colors",
             ampm === "AM" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
@@ -76,7 +102,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
         </button>
         <button
           type="button"
-          onClick={() => emit(hour12, minute, "PM")}
+          onClick={() => emit(localHour, localMinute, "PM")}
           className={cn(
             "px-2 py-1 transition-colors",
             ampm === "PM" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"

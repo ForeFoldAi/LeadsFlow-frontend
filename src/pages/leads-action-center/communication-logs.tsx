@@ -11,11 +11,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { History, Mail, CheckCircle, XCircle, Clock, Eye, MessageSquare, Phone } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
 import { communicationService, CommunicationLog } from "@/lib/apis";
 
@@ -40,7 +38,6 @@ export default function CommunicationLogs() {
   const [isLoading, setIsLoading] = useState(true);
   const [logs, setLogs] = useState<CommunicationLog[]>([]);
 
-  const { toast } = useToast(); // Wait, let's fix imports if toast is needed, but it's not used here in the original mock.
 
   useEffect(() => {
     fetchLogs();
@@ -109,76 +106,127 @@ export default function CommunicationLogs() {
                 </p>
               </div>
             ) : (
-              <ScrollArea className="h-[calc(100vh-220px)]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Lead</TableHead>
-                      <TableHead>Channel</TableHead>
-                      <TableHead>Subject / Content</TableHead>
-                      <TableHead>Sent At</TableHead>
-                      <TableHead className="w-[60px]">View</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {logs.map((log) => {
-                      const channel = log.type || log.channel;
-                      return (
-                        <TableRow key={log.id} data-testid={`row-log-${log.id}`}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {statusIcon(log.status)}
-                              <Badge variant={statusVariant(log.status)}>
-                                {log.status || "pending"}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium text-sm">{log.lead?.name || "Unknown"}</p>
-                              <p className="text-xs text-muted-foreground">{log.companyName || ""}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs uppercase">
+              <>
+                {/* Mobile card list */}
+                <div className="sm:hidden divide-y">
+                  {logs.map((log) => {
+                    const channel = log.type || log.channel;
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-4 flex items-start gap-3"
+                        data-testid={`row-log-${log.id}`}
+                      >
+                        <div className="mt-0.5 shrink-0">{statusIcon(log.status)}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-sm">{log.lead?.name || "Unknown"}</p>
+                            <Badge variant="outline" className="text-xs uppercase flex items-center">
                               {channel === "sms" ? <MessageSquare className="h-3 w-3 mr-1" /> :
                                 channel === "whatsapp" ? <Phone className="h-3 w-3 mr-1" /> :
                                   <Mail className="h-3 w-3 mr-1" />}
                               {channel}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="max-w-[250px]">
-                            <p className="text-sm truncate font-medium">{log.subject || (channel === 'email' ? 'No Subject' : 'Message Content')}</p>
-                            <p className="text-xs text-muted-foreground truncate">{log.content || ""}</p>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
+                            <Badge variant={statusVariant(log.status)} className="text-xs">
+                              {log.status || "pending"}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">{log.companyName || ""}</p>
+                          <p className="text-sm truncate font-medium mt-1">
+                            {log.subject || (channel === "email" ? "No Subject" : "Message Content")}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             {formatSentAt(log.sentAt)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => setViewLog(log)}
-                                data-testid={`button-view-log-${log.id}`}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                          </p>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0"
+                          onClick={() => setViewLog(log)}
+                          data-testid={`button-view-log-${log.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden sm:block">
+                  <ScrollArea className="h-[calc(100vh-220px)]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Lead</TableHead>
+                          <TableHead>Channel</TableHead>
+                          <TableHead>Subject / Content</TableHead>
+                          <TableHead>Sent At</TableHead>
+                          <TableHead className="w-[60px]">View</TableHead>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                      </TableHeader>
+                      <TableBody>
+                        {logs.map((log) => {
+                          const channel = log.type || log.channel;
+                          return (
+                            <TableRow key={log.id} data-testid={`row-log-${log.id}`}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {statusIcon(log.status)}
+                                  <Badge variant={statusVariant(log.status)}>
+                                    {log.status || "pending"}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-sm">{log.lead?.name || "Unknown"}</p>
+                                  <p className="text-xs text-muted-foreground">{log.companyName || ""}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs uppercase">
+                                  {channel === "sms" ? <MessageSquare className="h-3 w-3 mr-1" /> :
+                                    channel === "whatsapp" ? <Phone className="h-3 w-3 mr-1" /> :
+                                      <Mail className="h-3 w-3 mr-1" />}
+                                  {channel}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[250px]">
+                                <p className="text-sm truncate font-medium">{log.subject || (channel === "email" ? "No Subject" : "Message Content")}</p>
+                                <p className="text-xs text-muted-foreground truncate">{log.content || ""}</p>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {formatSentAt(log.sentAt)}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => setViewLog(log)}
+                                    data-testid={`button-view-log-${log.id}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
 
         <Dialog open={!!viewLog} onOpenChange={() => setViewLog(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
             {viewLog && (
               <>
                 <DialogHeader>

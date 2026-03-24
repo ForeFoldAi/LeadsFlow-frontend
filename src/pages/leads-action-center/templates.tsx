@@ -438,18 +438,18 @@ export default function Templates() {
 
         {/* Preview Dialog */}
         <Dialog open={!!previewTemplate} onOpenChange={() => setPreviewTemplate(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] flex flex-col">
             {previewTemplate && (
               <>
                 <DialogHeader>
                   <DialogTitle>Preview: {previewTemplate.name}</DialogTitle>
                 </DialogHeader>
-                <div className="mt-2">
-                  <div className="mb-3 p-3 bg-muted rounded-md">
+                <div className="mt-2 flex flex-col min-h-0 overflow-y-auto">
+                  <div className="mb-3 p-3 bg-muted rounded-md shrink-0">
                     <p className="text-xs text-muted-foreground">Subject:</p>
                     <p className="text-sm font-medium">{previewTemplate.subject}</p>
                   </div>
-                  <div className="border rounded-md p-4">
+                  <div className="border rounded-md p-4 overflow-y-auto">
                     <div dangerouslySetInnerHTML={{ __html: previewTemplate.body }} />
                   </div>
                 </div>

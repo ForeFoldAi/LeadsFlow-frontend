@@ -312,7 +312,7 @@ export default function Automation() {
                 New Schedule
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Schedule</DialogTitle>
               </DialogHeader>
@@ -327,7 +327,7 @@ export default function Automation() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Channel</Label>
                     <Select value={formChannel} onValueChange={setFormChannel}>
@@ -356,7 +356,7 @@ export default function Automation() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Time</Label>
                     <TimePicker
@@ -584,7 +584,7 @@ export default function Automation() {
 
       {/* Edit Schedule Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(o) => { setEditDialogOpen(o); if (!o) { setEditingSchedule(null); resetForm(); } }}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Schedule</DialogTitle>
           </DialogHeader>
@@ -598,7 +598,7 @@ export default function Automation() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Channel</Label>
                 <Select value={formChannel} onValueChange={setFormChannel}>
@@ -623,7 +623,7 @@ export default function Automation() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Time</Label>
                 <TimePicker value={formTime} onChange={setFormTime} />
