@@ -13,7 +13,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { History, Mail, CheckCircle, XCircle, Clock, Eye, MessageSquare, Phone } from "lucide-react";
+import { History, Mail, CheckCircle, XCircle, Clock, Eye, MessageSquare, Phone, MinusCircle } from "lucide-react";
 import { InlineLoader } from "@/components/ui/loader";
 import { communicationService, CommunicationLog } from "@/lib/apis";
 
@@ -62,6 +62,8 @@ export default function CommunicationLogs() {
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case "failed":
         return <XCircle className="h-4 w-4 text-destructive" />;
+      case "skipped":
+        return <MinusCircle className="h-4 w-4 text-yellow-500" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
@@ -74,6 +76,8 @@ export default function CommunicationLogs() {
         return "default";
       case "failed":
         return "destructive";
+      case "skipped":
+        return "outline";
       default:
         return "secondary";
     }
@@ -135,6 +139,11 @@ export default function CommunicationLogs() {
                           <p className="text-sm truncate font-medium mt-1">
                             {log.subject || (channel === "email" ? "No Subject" : "Message Content")}
                           </p>
+                          {log.errorMessage && (
+                            <p className="text-xs text-destructive truncate mt-0.5">
+                              {log.errorMessage}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {formatSentAt(log.sentAt)}
                           </p>
@@ -196,7 +205,10 @@ export default function CommunicationLogs() {
                               </TableCell>
                               <TableCell className="max-w-[250px]">
                                 <p className="text-sm truncate font-medium">{log.subject || (channel === "email" ? "No Subject" : "Message Content")}</p>
-                                <p className="text-xs text-muted-foreground truncate">{log.content || ""}</p>
+                                {log.errorMessage
+                                  ? <p className="text-xs text-destructive truncate">{log.errorMessage}</p>
+                                  : <p className="text-xs text-muted-foreground truncate">{log.content || ""}</p>
+                                }
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {formatSentAt(log.sentAt)}
