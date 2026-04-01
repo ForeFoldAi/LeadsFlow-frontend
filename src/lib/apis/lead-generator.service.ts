@@ -22,12 +22,8 @@ export interface LeadResult {
   email: string;
   city: string;
   category: string;
-  lead_score: number;
-  tier: string;
   sources: string;
   website: string;
-  rating: number;
-  reviews: number;
 }
 
 export interface GenerateResponse {
@@ -81,11 +77,7 @@ export interface LeadRead {
   category: string;
   city: string;
   state: string;
-  lead_score: number;
-  tier: string;
   sources: string;
-  rating: number;
-  reviews: number;
   scraped_at: string;
 }
 
@@ -150,6 +142,28 @@ const leadGeneratorService = {
 
   deleteLead: async (leadId: string): Promise<void> => {
     await leadGenAxios.delete(`/api/v1/leads/${leadId}`);
+  },
+
+  deleteLeads: async (jobId?: string): Promise<void> => {
+    await leadGenAxios.delete('/api/v1/leads', { params: jobId ? { job_id: jobId } : undefined });
+  },
+
+  getExportCsvUrl: (jobId?: string, minScore?: number): string => {
+    const baseUrl = import.meta.env.VITE_LEAD_GENERATOR_URL || 'http://localhost:8000';
+    const params = new URLSearchParams();
+    if (jobId) params.set('job_id', jobId);
+    if (minScore !== undefined) params.set('min_score', String(minScore));
+    const qs = params.toString();
+    return `${baseUrl}/api/v1/export/csv${qs ? `?${qs}` : ''}`;
+  },
+
+  getExportExcelUrl: (jobId?: string, minScore?: number): string => {
+    const baseUrl = import.meta.env.VITE_LEAD_GENERATOR_URL || 'http://localhost:8000';
+    const params = new URLSearchParams();
+    if (jobId) params.set('job_id', jobId);
+    if (minScore !== undefined) params.set('min_score', String(minScore));
+    const qs = params.toString();
+    return `${baseUrl}/api/v1/export/excel${qs ? `?${qs}` : ''}`;
   },
 
   getSectors: async (): Promise<string[]> => {

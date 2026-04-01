@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  X, Bot, User, Download, Sparkles,
-  Star, Phone, Mail, Globe, RefreshCw,
+  X, Bot, User, Download, Trash2,
+  Phone, Mail, Globe, RefreshCw,
   ChevronRight, MapPin, Building2, Send,
   BotMessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import leadGeneratorService, { GenerateResponse, LeadResult } from "@/lib/apis/lead-generator.service";
+import leadsService from "@/lib/apis/leads.service";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,31 +51,76 @@ interface ChatCardProps {
 
 const COUNTRIES = ["India", "United States", "United Kingdom", "UAE", "Canada", "Australia", "Singapore"];
 
+// Mirrors orchestrator.py SECTOR_HINTS — used as fallback when backend is offline
+const FALLBACK_SECTORS = [
+  "Capital Goods",
+  "FMCG + Cold Chain",
+  "Pharmaceuticals",
+  "Financial Services",
+  "Educational Institution",
+  "Real Estate",
+  "Interior Design",
+  "Industrials Solar",
+  "Logistics",
+  "Agriculture",
+  "Roller Flour Mills",
+  "Defence",
+];
+
+const LS_SECTORS = "leadsflow_sectors";
+
+type SourceOption = {
+  key: string;
+  label: string;
+  flag?: string;
+  indiaOnly?: boolean;
+  group: "directory" | "social" | "api";
+  requiresAuth?: boolean;
+  requiresApiKey?: boolean;
+};
+
+const SOURCE_OPTIONS: SourceOption[] = [
+  // ── Directory scrapers (no login required) ──────────────────────────────
+  { key: "google", label: "Google Maps", group: "directory" },
+  { key: "yelp", label: "Yelp", group: "directory" },
+  { key: "yellowpages", label: "Yellow Pages", group: "directory" },
+  { key: "bbb", label: "BBB", group: "directory" },
+  { key: "sulekha", label: "Sulekha", group: "directory", flag: "🇮🇳", indiaOnly: true },
+  // ── Social scrapers (require platform login) ────────────────────────────
+  { key: "linkedin", label: "LinkedIn", group: "social", requiresAuth: true },
+  { key: "facebook", label: "Facebook", group: "social", requiresAuth: true },
+  { key: "instagram", label: "Instagram", group: "social", requiresAuth: true },
+  { key: "twitter", label: "Twitter / X", group: "social", requiresAuth: true },
+  // ── API-based sources (require API key) ─────────────────────────────────
+  { key: "apollo", label: "Apollo.io", group: "api", requiresApiKey: true },
+];
+
+const DIRECTORY_SOURCES = SOURCE_OPTIONS.filter((s) => s.group === "directory");
+const SOCIAL_SOURCES = SOURCE_OPTIONS.filter((s) => s.group === "social");
+const API_SOURCES = SOURCE_OPTIONS.filter((s) => s.group === "api");
+
+function defaultSources(country: string): string[] {
+  const isIndia = country.toLowerCase().includes("india");
+  return DIRECTORY_SOURCES
+    .filter((s) => !s.indiaOnly || isIndia)
+    .map((s) => s.key);
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function uid() {
   return Date.now().toString() + Math.random().toString(36).slice(2);
 }
 
-function tierBadge(tier: string) {
-  if (tier.includes("Hot"))      return "bg-yellow-50 text-yellow-700 border-yellow-200";
-  if (tier.includes("Strong"))   return "bg-orange-50 text-orange-700 border-orange-200";
-  if (tier.includes("Good"))     return "bg-green-50 text-green-700 border-green-200";
-  if (tier.includes("Moderate")) return "bg-blue-50 text-blue-700 border-blue-200";
-  return "bg-gray-50 text-gray-500 border-gray-200";
-}
+
+
 
 // ── Lead Card ─────────────────────────────────────────────────────────────────
 
 function LeadCard({ lead }: { lead: LeadResult }) {
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2 text-xs">
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-gray-900 text-sm leading-snug">{lead.name || "—"}</p>
-        <span className={cn("shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium border whitespace-nowrap", tierBadge(lead.tier))}>
-          {lead.tier}
-        </span>
-      </div>
+      <p className="font-semibold text-gray-900 text-sm leading-snug">{lead.name || "\u2014"}</p>
       {lead.category && <p className="text-gray-500">{lead.category}</p>}
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-gray-500">
         {lead.phone && (
@@ -93,15 +139,6 @@ function LeadCard({ lead }: { lead: LeadResult }) {
           </a>
         )}
       </div>
-      {(lead.rating > 0 || lead.reviews > 0) && (
-        <div className="flex items-center gap-2 text-gray-500">
-          <span className="flex items-center gap-1">
-            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />{lead.rating.toFixed(1)}
-          </span>
-          {lead.reviews > 0 && <span>({lead.reviews} reviews)</span>}
-          <span className="ml-auto text-blue-600 font-semibold">Score {Math.round(lead.lead_score)}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -206,6 +243,96 @@ function TextInputWidget({
   );
 }
 
+function SourceChip({
+  src, active, onToggle,
+}: { src: SourceOption; active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={src.requiresAuth ? "Requires platform login" : src.requiresApiKey ? "Requires API key" : undefined}
+      className={cn(
+        "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm flex items-center gap-1",
+        active
+          ? "bg-slate-900 text-white border-slate-900"
+          : "bg-white text-gray-600 border-gray-200 hover:border-slate-400 hover:bg-slate-50",
+      )}
+    >
+      {src.flag && <span>{src.flag}</span>}
+      {src.label}
+      {(src.requiresAuth || src.requiresApiKey) && (
+        <span className={cn("text-[10px]", active ? "text-slate-300" : "text-gray-400")}>
+          {src.requiresApiKey ? "🔑" : "🔒"}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function SourceSelectWidget({
+  country, onConfirm, done,
+}: { country: string; onConfirm: (sources: string[]) => void; done?: boolean }) {
+  const isIndia = country.toLowerCase().includes("india");
+  const [selected, setSelected] = useState<string[]>(() => defaultSources(country));
+
+  if (done) return null;
+
+  function toggle(key: string) {
+    setSelected((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }
+
+  const visibleDirectory = DIRECTORY_SOURCES.filter((s) => !s.indiaOnly || isIndia);
+
+  return (
+    <div className="mt-3 space-y-3">
+
+      {/* Directory sources */}
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Directory</p>
+        <div className="flex flex-wrap gap-2">
+          {visibleDirectory.map((src) => (
+            <SourceChip key={src.key} src={src} active={selected.includes(src.key)} onToggle={() => toggle(src.key)} />
+          ))}
+        </div>
+      </div>
+
+      {/* Social sources */}
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          Social <span className="normal-case font-normal text-gray-400">(requires login)</span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SOCIAL_SOURCES.map((src) => (
+            <SourceChip key={src.key} src={src} active={selected.includes(src.key)} onToggle={() => toggle(src.key)} />
+          ))}
+        </div>
+      </div>
+
+      {/* API sources */}
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          API <span className="normal-case font-normal text-gray-400">(requires API key)</span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {API_SOURCES.map((src) => (
+            <SourceChip key={src.key} src={src} active={selected.includes(src.key)} onToggle={() => toggle(src.key)} />
+          ))}
+        </div>
+      </div>
+
+      <Button
+        size="sm"
+        disabled={selected.length === 0}
+        onClick={() => onConfirm(selected)}
+        className="h-8 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-4 disabled:opacity-40"
+      >
+        Start Searching <ChevronRight className="w-3.5 h-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 function CountrySelectWidget({
   onSelect, onOther, done,
 }: { onSelect: (c: string) => void; onOther: () => void; done?: boolean }) {
@@ -226,24 +353,85 @@ function CountrySelectWidget({
   );
 }
 
+// ── localStorage persistence ───────────────────────────────────────────────────
+
+const LS_MESSAGES = "leadsflow_chat_messages";
+const LS_STEP = "leadsflow_chat_step";
+
+function saveMessages(msgs: Message[]) {
+  try {
+    localStorage.setItem(LS_MESSAGES, JSON.stringify(
+      msgs.map((m) => ({ ...m, timestamp: m.timestamp.toISOString(), isGenerating: false }))
+    ));
+  } catch { }
+}
+
+function loadMessages(): Message[] {
+  try {
+    const raw = localStorage.getItem(LS_MESSAGES);
+    if (!raw) return [];
+    return (JSON.parse(raw) as any[]).map((m) => ({
+      ...m,
+      timestamp: new Date(m.timestamp),
+      isGenerating: false,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function saveStep(s: ConversationStep) {
+  try {
+    localStorage.setItem(LS_STEP, JSON.stringify(s));
+  } catch { }
+}
+
+function loadStep(): ConversationStep {
+  try {
+    const raw = localStorage.getItem(LS_STEP);
+    if (!raw) return { step: "welcome" };
+    const parsed = JSON.parse(raw) as ConversationStep;
+    // Can't resume a mid-generation — fall back to idle
+    if (parsed.step === "generating") return { step: "idle" };
+    return parsed;
+  } catch {
+    return { step: "welcome" };
+  }
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [step, setStep] = useState<ConversationStep>({ step: "welcome" });
-  const [sectors, setSectors] = useState<string[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => loadMessages());
+  const [step, setStep] = useState<ConversationStep>(() => loadStep());
+  const [sectors, setSectors] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem(LS_SECTORS);
+      if (cached) return JSON.parse(cached) as string[];
+    } catch { }
+    return FALLBACK_SECTORS;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load sectors once
+  // Persist messages whenever they change
+  useEffect(() => { saveMessages(messages); }, [messages]);
+
+  // Persist step whenever it changes
+  useEffect(() => { saveStep(step); }, [step]);
+
+  // Load sectors — update cache if backend is reachable, else use cached/fallback
   useEffect(() => {
     leadGeneratorService.getSectors()
-      .then(setSectors)
-      .catch(() => setSectors([]));
+      .then((fetched) => {
+        setSectors(fetched);
+        try { localStorage.setItem(LS_SECTORS, JSON.stringify(fetched)); } catch { }
+      })
+      .catch(() => { /* keep cached/fallback sectors already in state */ });
   }, []);
 
-  // Boot welcome message on first open
+  // Boot welcome message only if there's no history
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([
@@ -356,9 +544,12 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
     markWidgetDone(msgId);
     addUserMsg(country);
     setTimeout(() => {
-      startGeneration(sector, city, country);
+      const sources = defaultSources(country);
+      startGeneration(sector, city, country, sources);
     }, 300);
   }
+
+
 
   function handleCustomCountry(sector: string, city: string, msgId: string) {
     markWidgetDone(msgId);
@@ -373,21 +564,25 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
     markWidgetDone(msgId);
     addUserMsg(country);
     setTimeout(() => {
-      startGeneration(sector, city, country);
+      const sources = defaultSources(country);
+      startGeneration(sector, city, country, sources);
     }, 300);
   }
 
-  async function startGeneration(sector: string, city: string, country: string) {
+  async function startGeneration(sector: string, city: string, country: string, sources: string[]) {
     setIsLoading(true);
     addBotMsg(
-      `Searching for ${sector} leads in ${city}, ${country}…\n\nThis may take a moment while I scan multiple sources.`,
+      `Searching for ${sector} leads in ${city}, ${country}…\n\nIt takes 5 - 10 mins. Please wait while I scan multiple sources.`,
       undefined,
       { isGenerating: true },
     );
     setStep({ step: "generating", sector, city, country, sessionId: "" });
 
     try {
-      const res = await leadGeneratorService.startGeneration({ sector, city, country, sources: ['apify'] });
+      // Save sector to backend custom_sectors table (fire-and-forget, no duplicates)
+      leadsService.addCustomSector(sector).catch(() => { });
+
+      const res = await leadGeneratorService.startGeneration({ sector, city, country, sources, max_per_source: 10, delay: 1.0 });
       setStep({ step: "generating", sector, city, country, sessionId: res.session_id });
 
       pollRef.current = setInterval(async () => {
@@ -457,6 +652,22 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
     }
   }
 
+  function handleClearHistory() {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = null;
+    setIsLoading(false);
+    localStorage.removeItem(LS_MESSAGES);
+    localStorage.removeItem(LS_STEP);
+    setStep({ step: "welcome" });
+    setMessages([{
+      id: "welcome",
+      role: "assistant",
+      content: "Welcome to AI Lead Generator by ForeFold!\n\nI can help you find quality business leads. Ready to get started?",
+      timestamp: new Date(),
+      widget: { type: "get_started" },
+    }]);
+  }
+
   function handleDownload(sessionId: string, type: "csv" | "excel") {
     const url = type === "csv"
       ? leadGeneratorService.getDownloadCsvUrl(sessionId)
@@ -497,14 +708,8 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
     }
 
     if (widget.type === "city_input") {
-      return (
-        <TextInputWidget
-          placeholder="e.g. Mumbai, Delhi, Bangalore…"
-          icon={<MapPin className="w-4 h-4" />}
-          done={msg.widgetDone}
-          onSubmit={(v) => handleCityInput(v, widget.sector, msg.id)}
-        />
-      );
+      // City input is rendered in the sticky footer, not inline
+      return null;
     }
 
     if (widget.type === "country_select") {
@@ -516,6 +721,8 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
         />
       );
     }
+
+
 
     if (widget.type === "custom_country_input") {
       return (
@@ -585,12 +792,21 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleClearHistory}
+              title="Clear chat history"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* ── Messages ── */}
@@ -658,10 +874,48 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
         </div>
 
         {/* ── Footer ── */}
-        <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 md:rounded-b-2xl shrink-0">
-          <p className="text-[11px] text-gray-400 text-center">
-            AI Lead Generator · powered by <span className="text-purple-500 font-medium">ForeFold</span>
-          </p>
+        <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 md:rounded-b-2xl shrink-0">
+          {step.step === "city_input" ? (
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:border-slate-400 focus-within:ring-1 focus-within:ring-slate-200 transition-all">
+                <span className="text-gray-400 shrink-0"><MapPin className="w-4 h-4" /></span>
+                <input
+                  autoFocus
+                  key={step.step}
+                  defaultValue=""
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.currentTarget as HTMLInputElement).value.trim()) {
+                      const v = (e.currentTarget as HTMLInputElement).value.trim();
+                      // find the city_input message to mark done
+                      const cityMsg = [...messages].reverse().find((m) => m.widget?.type === "city_input");
+                      if (cityMsg) handleCityInput(v, (cityMsg.widget as { type: "city_input"; sector: string }).sector, cityMsg.id);
+                      (e.currentTarget as HTMLInputElement).value = "";
+                    }
+                  }}
+                  placeholder="Which city should I search in?"
+                  className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none min-w-0"
+                />
+              </div>
+              <button
+                onClick={(e) => {
+                  const input = (e.currentTarget as HTMLElement).previousElementSibling?.querySelector("input") as HTMLInputElement | null;
+                  if (input && input.value.trim()) {
+                    const v = input.value.trim();
+                    const cityMsg = [...messages].reverse().find((m) => m.widget?.type === "city_input");
+                    if (cityMsg) handleCityInput(v, (cityMsg.widget as { type: "city_input"; sector: string }).sector, cityMsg.id);
+                    input.value = "";
+                  }
+                }}
+                className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-400 text-center">
+              AI Lead Generator · powered by <span className="text-purple-500 font-medium">ForeFold</span>
+            </p>
+          )}
         </div>
       </div>
     </>
