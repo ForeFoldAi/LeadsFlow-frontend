@@ -304,10 +304,10 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
-      
+
       // Dispatch custom event to notify table to refetch
       window.dispatchEvent(new CustomEvent('leadAdded'));
-      
+
       toast({
         title: "Lead Added Successfully",
         description: "The new lead has been saved.",
@@ -316,12 +316,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
     },
     onError: (error: any) => {
       let errorMessage = "We couldn't save this lead. Please check your information and try again.";
-      
+
       // Extract user-friendly message from error response
       if (error?.message) {
         // Remove HTTP status codes and technical details
         let message = error.message.replace(/^\d+:\s*/, ''); // Remove status codes like "400: "
-        
+
         // Remove JSON formatting if present
         if (message.includes('{"error":') || message.includes('{"message":')) {
           try {
@@ -331,12 +331,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
             // If JSON parsing fails, use the original message
           }
         }
-        
+
         if (!message.includes('Failed to fetch') && !message.includes('NetworkError')) {
           errorMessage = message;
         }
       }
-      
+
       toast({
         title: "Unable to Save Lead",
         description: errorMessage,
@@ -357,10 +357,10 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
-      
+
       // Dispatch custom event to notify table to refetch
       window.dispatchEvent(new CustomEvent('leadUpdated'));
-      
+
       toast({
         title: "Lead Updated Successfully",
         description: "The lead information has been updated.",
@@ -369,12 +369,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
     },
     onError: (error: any) => {
       let errorMessage = "We couldn't update this lead. Please check your information and try again.";
-      
+
       // Extract user-friendly message from error response
       if (error?.message) {
         // Remove HTTP status codes and technical details
         let message = error.message.replace(/^\d+:\s*/, ''); // Remove status codes like "400: "
-        
+
         // Remove JSON formatting if present
         if (message.includes('{"error":') || message.includes('{"message":')) {
           try {
@@ -384,12 +384,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
             // If JSON parsing fails, use the original message
           }
         }
-        
+
         if (!message.includes('Failed to fetch') && !message.includes('NetworkError')) {
           errorMessage = message;
         }
       }
-      
+
       toast({
         title: "Unable to Update Lead",
         description: errorMessage,
@@ -766,6 +766,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                           ))}
                         </SelectContent>
                       </Select>
+                      {field.value === LeadSource.OTHER && (
+                        <p className="text-xs text-amber-600 mt-0.5">Please add the custom lead source at Communication & Follow-up</p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -780,7 +783,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                       <FormLabel className="text-xs">
                         Sector <span className="text-red-500">*</span>
                       </FormLabel>
-                      <Select 
+                      <Select
                         onValueChange={(value) => {
                           if (value.toLowerCase() === Sector.OTHER || value.toLowerCase() === "other") {
                             // Save current value before opening dialog
@@ -793,7 +796,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                             form.setValue("customSector", "");
                             setPreviousSectorValue(value); // Update previous value for next time
                           }
-                        }} 
+                        }}
                         value={field.value || ""}
                       >
                         <FormControl>
@@ -826,12 +829,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                       <FormLabel className="text-xs">Last Contacted Date</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Input 
-                            type="date" 
-                            {...field} 
+                          <Input
+                            type="date"
+                            {...field}
                             value={field.value || ""}
                             onChange={(e) => field.onChange(e.target.value || null)}
-                            data-testid="input-last-contacted-date" 
+                            data-testid="input-last-contacted-date"
                           />
                           {field.value && (
                             <button
@@ -887,12 +890,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                       <FormLabel className="text-xs">Date of Birth</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Input 
-                            type="date" 
-                            {...field} 
+                          <Input
+                            type="date"
+                            {...field}
                             value={field.value || ""}
                             onChange={(e) => field.onChange(e.target.value || null)}
-                            data-testid="input-dob" 
+                            data-testid="input-dob"
                           />
                           {field.value && (
                             <button
@@ -973,7 +976,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                     name="customLeadSource"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Custom Lead Source</FormLabel>
+                        <FormLabel className="text-xs">
+                          Custom Lead Source <span className="text-red-500">*</span>
+                        </FormLabel>
                         <FormControl>
                           <Input
                             placeholder="Enter custom lead source (max 50 characters)"
@@ -1082,8 +1087,8 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
               </div>
 
               {/* Custom Sector Dialog */}
-              <Dialog 
-                open={isCustomSectorDialogOpen} 
+              <Dialog
+                open={isCustomSectorDialogOpen}
                 onOpenChange={(open) => {
                   setIsCustomSectorDialogOpen(open);
                   if (!open) {
@@ -1215,12 +1220,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                         <FormLabel className="text-xs">Date of Birth</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Input 
-                              type="date" 
-                              {...field} 
+                            <Input
+                              type="date"
+                              {...field}
                               value={field.value || ""}
                               onChange={(e) => field.onChange(e.target.value || null)}
-                              data-testid="input-dob" 
+                              data-testid="input-dob"
                             />
                             {field.value && (
                               <button
@@ -1315,6 +1320,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                             ))}
                           </SelectContent>
                         </Select>
+                        {field.value === LeadSource.OTHER && (
+                          <p className="text-xs text-amber-600 mt-0.5">Please add the custom lead source at Communication & Follow-up</p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1328,7 +1336,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                         <FormLabel className="text-xs">
                           Sector <span className="text-red-500">*</span>
                         </FormLabel>
-                        <Select 
+                        <Select
                           onValueChange={(value) => {
                             if (value.toLowerCase() === Sector.OTHER || value.toLowerCase() === "other") {
                               // Save current value before opening dialog
@@ -1341,7 +1349,7 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                               form.setValue("customSector", "");
                               setPreviousSectorValue(value); // Update previous value for next time
                             }
-                          }} 
+                          }}
                           value={field.value || ""}
                         >
                           <FormControl>
@@ -1453,12 +1461,12 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                         <FormLabel className="text-xs">Last Contacted Date</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Input 
-                              type="date" 
-                              {...field} 
+                            <Input
+                              type="date"
+                              {...field}
                               value={field.value || ""}
                               onChange={(e) => field.onChange(e.target.value || null)}
-                              data-testid="input-last-contacted-date" 
+                              data-testid="input-last-contacted-date"
                             />
                             {field.value && (
                               <button
@@ -1538,7 +1546,9 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
                       name="customLeadSource"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs">Custom Lead Source</FormLabel>
+                          <FormLabel className="text-xs">
+                            Custom Lead Source <span className="text-red-500">*</span>
+                          </FormLabel>
                           <FormControl>
                             <Input
                               placeholder="Enter custom lead source (max 50 characters)"
@@ -1809,8 +1819,8 @@ export default function LeadForm({ lead, onClose }: LeadFormProps) {
               </div>
 
               {/* Custom Sector Dialog */}
-              <Dialog 
-                open={isCustomSectorDialogOpen} 
+              <Dialog
+                open={isCustomSectorDialogOpen}
                 onOpenChange={(open) => {
                   setIsCustomSectorDialogOpen(open);
                   if (!open) {

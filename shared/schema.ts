@@ -6,10 +6,10 @@ import { z } from "zod";
 // Custom URL validation function that accepts various formats
 const flexibleUrlSchema = z.string().refine((value) => {
   if (!value || value === "") return true; // Allow empty strings
-  
+
   // Remove leading/trailing whitespace
   const trimmedValue = value.trim();
-  
+
   // Basic URL patterns
   const urlPatterns = [
     // Full URLs with protocol
@@ -23,7 +23,7 @@ const flexibleUrlSchema = z.string().refine((value) => {
     // IP addresses
     /^https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?(\/.*)?$/i,
   ];
-  
+
   return urlPatterns.some(pattern => pattern.test(trimmedValue));
 }, {
   message: "Please enter a valid website URL (e.g., example.com, www.example.com, https://example.com)"
@@ -208,7 +208,15 @@ export const insertLeadSchema = createInsertSchema(leads, {
     .max(255, "Maximum 255 characters allowed")
     .optional()
     .or(z.literal("")),
-}).omit({ id: true, createdAt: true });
+}).omit({ id: true, createdAt: true }).superRefine((data, ctx) => {
+  if (data.leadSource === 'other' && (!data.customLeadSource || data.customLeadSource.trim() === '')) {
+    ctx.addIssue({
+      path: ['customLeadSource'],
+      message: 'Custom lead source is required when Lead Source is Other',
+      code: z.ZodIssueCode.custom,
+    });
+  }
+});
 
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
