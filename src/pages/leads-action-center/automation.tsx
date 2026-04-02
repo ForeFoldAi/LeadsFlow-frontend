@@ -140,6 +140,11 @@ export default function Automation() {
   }
 
 
+  function handleFrequencyChange(value: string) {
+    setFormFrequency(value);
+    setFormDays("");
+  }
+
   async function handleCreate() {
     if (isSaving) return;
     if (!formName.trim()) {
@@ -154,7 +159,7 @@ export default function Automation() {
         channel: formChannel,
         frequency: formFrequency,
         time: formTime,
-        days: formFrequency === "custom" ? formDays : undefined,
+        days: (formFrequency === "custom" || formFrequency === "weekly") ? formDays : undefined,
         templateIds: formChannel === "email" && formTemplateIds.length > 0 ? formTemplateIds : undefined,
         smsMessage: formChannel === "sms" ? formSmsMessage : undefined,
         whatsappMessage: formChannel === "whatsapp" ? formWhatsappMessage : undefined,
@@ -199,7 +204,7 @@ export default function Automation() {
         channel: formChannel,
         frequency: formFrequency,
         time: formTime,
-        days: formFrequency === "custom" ? formDays : undefined,
+        days: (formFrequency === "custom" || formFrequency === "weekly") ? formDays : undefined,
         templateIds: formChannel === "email" && formTemplateIds.length > 0 ? formTemplateIds : undefined,
         smsMessage: formChannel === "sms" ? formSmsMessage : undefined,
         whatsappMessage: formChannel === "whatsapp" ? formWhatsappMessage : undefined,
@@ -343,7 +348,7 @@ export default function Automation() {
                   </div>
                   <div>
                     <Label>Frequency</Label>
-                    <Select value={formFrequency} onValueChange={setFormFrequency}>
+                    <Select value={formFrequency} onValueChange={handleFrequencyChange}>
                       <SelectTrigger data-testid="select-frequency">
                         <SelectValue />
                       </SelectTrigger>
@@ -365,6 +370,25 @@ export default function Automation() {
                       data-testid="input-schedule-time"
                     />
                   </div>
+                  {formFrequency === "weekly" && (
+                    <div>
+                      <Label>Day of Week</Label>
+                      <Select value={formDays} onValueChange={setFormDays}>
+                        <SelectTrigger data-testid="select-schedule-day">
+                          <SelectValue placeholder="Select day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mon">Monday</SelectItem>
+                          <SelectItem value="tue">Tuesday</SelectItem>
+                          <SelectItem value="wed">Wednesday</SelectItem>
+                          <SelectItem value="thu">Thursday</SelectItem>
+                          <SelectItem value="fri">Friday</SelectItem>
+                          <SelectItem value="sat">Saturday</SelectItem>
+                          <SelectItem value="sun">Sunday</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   {formFrequency === "custom" && (
                     <div>
                       <Label>Days (comma-separated)</Label>
@@ -612,7 +636,7 @@ export default function Automation() {
               </div>
               <div>
                 <Label>Frequency</Label>
-                <Select value={formFrequency} onValueChange={setFormFrequency}>
+                <Select value={formFrequency} onValueChange={handleFrequencyChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">Daily</SelectItem>
@@ -628,6 +652,25 @@ export default function Automation() {
                 <Label>Time</Label>
                 <TimePicker value={formTime} onChange={setFormTime} />
               </div>
+              {formFrequency === "weekly" && (
+                <div>
+                  <Label>Day of Week</Label>
+                  <Select value={formDays} onValueChange={setFormDays}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select day" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mon">Monday</SelectItem>
+                      <SelectItem value="tue">Tuesday</SelectItem>
+                      <SelectItem value="wed">Wednesday</SelectItem>
+                      <SelectItem value="thu">Thursday</SelectItem>
+                      <SelectItem value="fri">Friday</SelectItem>
+                      <SelectItem value="sat">Saturday</SelectItem>
+                      <SelectItem value="sun">Sunday</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {formFrequency === "custom" && (
                 <div>
                   <Label>Days (comma-separated)</Label>
