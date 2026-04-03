@@ -725,12 +725,15 @@ export interface ImportLeadResult {
   error?: string;
   rowNumber?: number;
   row?: number;
+  duplicate?: boolean;
+  duplicateReason?: 'email' | 'phone' | 'email_in_batch' | 'phone_in_batch';
 }
 
 export interface ImportLeadsResponse {
   total: number;
   successful: number;
   failed: number;
+  duplicates: number;
   results: ImportLeadResult[];
 }
 

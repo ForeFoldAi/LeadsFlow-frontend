@@ -421,14 +421,23 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
   // Persist step whenever it changes
   useEffect(() => { saveStep(step); }, [step]);
 
-  // Load sectors — update cache if backend is reachable, else use cached/fallback
+  // Load sectors — merge generator hardcoded list + backend custom sectors
   useEffect(() => {
-    leadGeneratorService.getSectors()
-      .then((fetched) => {
-        setSectors(fetched);
-        try { localStorage.setItem(LS_SECTORS, JSON.stringify(fetched)); } catch { }
-      })
-      .catch(() => { /* keep cached/fallback sectors already in state */ });
+    Promise.allSettled([
+      leadGeneratorService.getSectors(),
+      leadsService.getSectors(),
+    ]).then(([genResult, backendResult]) => {
+      const gen     = genResult.status     === 'fulfilled' ? genResult.value     : [];
+      const backend = backendResult.status === 'fulfilled' ? backendResult.value : [];
+      // Merge, deduplicate (case-insensitive), preserve order: generator first, then custom
+      const seen = new Set(gen.map((s) => s.toLowerCase()));
+      const custom = backend.filter((s) => !seen.has(s.toLowerCase()));
+      const merged = [...gen, ...custom];
+      if (merged.length > 0) {
+        setSectors(merged);
+        try { localStorage.setItem(LS_SECTORS, JSON.stringify(merged)); } catch { }
+      }
+    });
   }, []);
 
   // Boot welcome message only if there's no history
@@ -519,6 +528,13 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
   function handleCustomSectorSubmit(sector: string, msgId: string) {
     markWidgetDone(msgId);
     addUserMsg(sector);
+    // Save to backend immediately so it appears in sector dropdown on next visit
+    leadsService.addCustomSector(sector).then(() => {
+      setSectors((prev) => {
+        const already = prev.some((s) => s.toLowerCase() === sector.toLowerCase());
+        return already ? prev : [...prev, sector];
+      });
+    }).catch(() => { });
     setTimeout(() => {
       addBotMsg(
         `Got it — ${sector}!\n\nWhich city should I search in?`,
@@ -549,8 +565,6 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
     }, 300);
   }
 
-
-
   function handleCustomCountry(sector: string, city: string, msgId: string) {
     markWidgetDone(msgId);
     addBotMsg(
@@ -579,8 +593,6 @@ export default function ChatCard({ isOpen, onClose }: ChatCardProps) {
     setStep({ step: "generating", sector, city, country, sessionId: "" });
 
     try {
-      // Save sector to backend custom_sectors table (fire-and-forget, no duplicates)
-      leadsService.addCustomSector(sector).catch(() => { });
 
       const res = await leadGeneratorService.startGeneration({ sector, city, country, sources, max_per_source: 10, delay: 1.0 });
       setStep({ step: "generating", sector, city, country, sessionId: res.session_id });

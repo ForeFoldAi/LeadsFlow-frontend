@@ -167,6 +167,7 @@ export default function ImportDialog({ onImportSuccess }: ImportDialogProps) {
           results: {
             successful: importResponse.successful,
             failed: importResponse.failed,
+            duplicates: importResponse.duplicates ?? 0,
             total: importResponse.total,
             details: importResponse.results
           }
@@ -177,9 +178,12 @@ export default function ImportDialog({ onImportSuccess }: ImportDialogProps) {
         window.dispatchEvent(new CustomEvent('leadsImported'));
 
         if (importResponse.successful > 0) {
+          const dupNote = (importResponse.duplicates ?? 0) > 0
+            ? `, ${importResponse.duplicates} skipped (duplicates)`
+            : '';
           toast({
             title: "Import Successful",
-            description: `${importResponse.successful} leads imported successfully from ${rows.length} rows.`,
+            description: `${importResponse.successful} leads imported${dupNote}.`,
           });
           if (onImportSuccess) {
             onImportSuccess();
@@ -189,7 +193,15 @@ export default function ImportDialog({ onImportSuccess }: ImportDialogProps) {
         if (importResponse.failed > 0) {
           toast({
             title: "Import Completed",
-            description: `${importResponse.successful} leads imported, ${importResponse.failed} rows failed.`,
+            description: `${importResponse.successful} imported, ${importResponse.failed} failed, ${importResponse.duplicates ?? 0} duplicates skipped.`,
+            variant: "destructive",
+          });
+        }
+
+        if (importResponse.successful === 0 && (importResponse.duplicates ?? 0) > 0) {
+          toast({
+            title: "All Duplicates",
+            description: `All ${importResponse.duplicates} leads already exist in your organization.`,
             variant: "destructive",
           });
         }
@@ -455,6 +467,12 @@ export default function ImportDialog({ onImportSuccess }: ImportDialogProps) {
                     <span>Successfully Imported:</span>
                     <span className="font-medium">{importResults.results.successful}</span>
                   </div>
+                  {(importResults.results.duplicates ?? 0) > 0 && (
+                    <div className="flex justify-between text-yellow-600">
+                      <span>Skipped (Duplicates):</span>
+                      <span className="font-medium">{importResults.results.duplicates}</span>
+                    </div>
+                  )}
                   {importResults.results.failed > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span>Failed:</span>
