@@ -725,12 +725,15 @@ export interface ImportLeadResult {
   error?: string;
   rowNumber?: number;
   row?: number;
+  duplicate?: boolean;
+  duplicateReason?: 'email' | 'phone' | 'email_in_batch' | 'phone_in_batch';
 }
 
 export interface ImportLeadsResponse {
   total: number;
   successful: number;
   failed: number;
+  duplicates: number;
   results: ImportLeadResult[];
 }
 
@@ -997,6 +1000,19 @@ export const TEMPLATE_CATEGORY_LABELS: Record<TemplateCategory, string> = {
   [TemplateCategory.FOLLOWUP_TEMPLATE]: 'Followup Template',
 };
 
+export interface EmailAttachment {
+  url: string;
+  filename: string;
+  contentType: string;
+}
+
+export type MediaKind = 'image' | 'document' | 'video';
+
+export interface UploadedMedia extends EmailAttachment {
+  size: number;
+  kind: MediaKind;
+}
+
 export interface FollowupTemplate {
   id: string;
   name: string;
@@ -1007,6 +1023,7 @@ export interface FollowupTemplate {
   body: string;
   type: string;
   category: TemplateCategory;
+  attachments?: EmailAttachment[] | null;
   userId: string;
   adminId: string;
   createdAt: string;
@@ -1021,6 +1038,7 @@ export interface CreateTemplateDto {
   body: string;
   type: string;
   category?: TemplateCategory;
+  attachments?: EmailAttachment[];
 }
 
 export interface BulkCreateTemplateDto {
@@ -1030,6 +1048,7 @@ export interface BulkCreateTemplateDto {
   body: string;
   type: string;
   category?: TemplateCategory;
+  attachments?: EmailAttachment[];
 }
 
 export interface UpdateTemplateDto {
@@ -1040,6 +1059,7 @@ export interface UpdateTemplateDto {
   body?: string;
   type?: string;
   category?: TemplateCategory;
+  attachments?: EmailAttachment[];
 }
 
 // ============================================================================
@@ -1069,6 +1089,7 @@ export interface SendMessageDto {
   type: 'email' | 'sms' | 'whatsapp';
   subject?: string;
   content: string;
+  attachments?: EmailAttachment[];
 }
 
 // ============================================================================
