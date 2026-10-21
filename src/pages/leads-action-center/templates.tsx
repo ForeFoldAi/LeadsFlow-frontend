@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { InlineLoader } from "@/components/ui/loader";
 import RichTextEditor, { RichTextEditorRef } from "@/components/ui/rich-text-editor";
 import { Plus, FileText, Edit, Trash2, Eye, ChevronDown, Search } from "lucide-react";
-import { templatesService, leadsService, FollowupTemplate, TemplateCategory, TEMPLATE_CATEGORY_LABELS } from "@/lib/apis";
+import { templatesService, leadsService, FollowupTemplate, TemplateCategory, TEMPLATE_CATEGORY_LABELS, EmailAttachment } from "@/lib/apis";
 
 export default function Templates() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -36,6 +36,7 @@ export default function Templates() {
     body: "",
     type: "email",
     category: TemplateCategory.GENERAL,
+    attachments: [] as EmailAttachment[],
   });
   const [sectorOpen, setSectorOpen] = useState(false);
   const [sectorSearch, setSectorSearch] = useState("");
@@ -100,6 +101,7 @@ export default function Templates() {
       body: t.body,
       type: t.type || "email",
       category: t.category || TemplateCategory.GENERAL,
+      attachments: t.attachments ?? [],
     });
     setEditTemplate(t);
   };
@@ -129,6 +131,7 @@ export default function Templates() {
           category: formData.category,
           sector: formData.sectors[0],
           sectors: formData.sectors.length > 1 ? formData.sectors : [formData.sectors[0]],
+          attachments: formData.attachments,
         });
         toast({ title: "Template updated" });
         setEditTemplate(null);
@@ -140,6 +143,7 @@ export default function Templates() {
           body: formData.body,
           type: formData.type,
           category: formData.category,
+          attachments: formData.attachments,
         });
         toast({ title: "Template created (1 template for all selected sectors)" });
         setIsCreateOpen(false);
@@ -151,11 +155,12 @@ export default function Templates() {
           body: formData.body,
           type: formData.type,
           category: formData.category,
+          attachments: formData.attachments,
         });
         toast({ title: "Template created successfully" });
         setIsCreateOpen(false);
       }
-      setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
+      setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL, attachments: [] });
       fetchData();
     } catch (err) {
       console.error("handleSave error:", err);
@@ -176,7 +181,7 @@ export default function Templates() {
   };
 
   const resetAndOpen = () => {
-    setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL });
+    setFormData({ name: "", sectors: [], subject: "", body: "", type: "email", category: TemplateCategory.GENERAL, attachments: [] });
     setIsCreateOpen(true);
   };
 
@@ -414,6 +419,8 @@ export default function Templates() {
                   onChange={(html) => setFormData((prev) => ({ ...prev, body: html }))}
                   placeholder="Dear {{name}}, I wanted to reach out to {{company}}..."
                   minHeight="220px"
+                  attachments={formData.attachments}
+                  onAttachmentsChange={(attachments) => setFormData((prev) => ({ ...prev, attachments }))}
                 />
               </div>
             </div>

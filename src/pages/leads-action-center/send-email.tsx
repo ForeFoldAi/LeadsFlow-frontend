@@ -66,7 +66,8 @@ import {
   templatesService,
   communicationService,
   LeadResponse,
-  FollowupTemplate
+  FollowupTemplate,
+  EmailAttachment
 } from "@/lib/apis";
 
 export default function SendEmail() {
@@ -75,6 +76,7 @@ export default function SendEmail() {
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [customSubject, setCustomSubject] = useState("");
   const [customBody, setCustomBody] = useState("");
+  const [customAttachments, setCustomAttachments] = useState<EmailAttachment[]>([]);
   const [useCustom, setUseCustom] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -228,14 +230,17 @@ export default function SendEmail() {
 
         let subject: string;
         let body: string;
+        let attachments: EmailAttachment[] | undefined;
 
         if (useCustom) {
           subject = customSubject;
           body = customBody;
+          attachments = customAttachments;
         } else {
           const template = getTemplateForLead(lead);
           subject = template?.subject || "";
           body = template?.body || "";
+          attachments = template?.attachments ?? undefined;
         }
 
         if (!body) continue;
@@ -246,6 +251,7 @@ export default function SendEmail() {
             type: "email",
             subject,
             content: body,
+            attachments: attachments?.length ? attachments : undefined,
           });
           successCount++;
           if (selectedLeadIds.length > 1) {
@@ -269,6 +275,7 @@ export default function SendEmail() {
       if (successCount > 0) {
         setCustomSubject("");
         setCustomBody("");
+        setCustomAttachments([]);
       }
     } catch (error) {
       toast({ title: "Failed to process emails", variant: "destructive" });
@@ -613,6 +620,8 @@ export default function SendEmail() {
                               onChange={setCustomBody}
                               placeholder="Dear {{name}},..."
                               minHeight="120px"
+                              attachments={customAttachments}
+                              onAttachmentsChange={setCustomAttachments}
                             />
                           </div>
                         </>
